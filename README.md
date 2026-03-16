@@ -16,6 +16,7 @@ This project is currently optimized for development on macOS. You will need the 
 brew install nasm qemu xorriso
 # Note: You need a cross-compiler (x86_64-elf-gcc or i686-elf-gcc)
 brew install x86_64-elf-gcc x86_64-elf-binutils
+#IMPORTANT: When compiling using x86_64-elf-gcc, you must specify the flags to compile to a 32-bit system.
 
 ```
 
