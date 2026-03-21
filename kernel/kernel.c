@@ -419,11 +419,14 @@ static int do_nano(int argc, char** argv) {
 
 static void shell_loop(void) {
     char buf[256];
+    char* argv[16];
+    int argc;
     while (1) {
         terminal_write("root@dev_null# ");
+        for(int8_t i = 0; i < 16; i++)
+            argv[i] = '\0'; // clears stale data, TODO: memset
+
         read_line(buf, sizeof(buf));
-        char* argv[16];
-        int argc;
         split_args(buf, argv, &argc);
         if (argc == 0) continue;
         if (compare_string(argv[0], "ls") == 0) { do_ls(argc, argv); continue; }
