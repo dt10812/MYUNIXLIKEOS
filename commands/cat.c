@@ -7,19 +7,26 @@ vnode_t* vfs_lookup(const char* path);
 
 int cmd_cat(int argc, char** argv) {
     if (argc < 2) {
+        // POSIX complaint cat should read from stdin if file is not present
         terminal_write("Usage: cat <file>\n");
         return -1;
     }
 
-    vnode_t* file = vfs_lookup(argv[1]);
-    if (!file || !(file->flags & VFS_FILE)) {
-        terminal_write("cat: file not found\n");
-        return -1;
-    }
+    vnode_t* file;
 
-    if (file->content) {
-        terminal_write(file->content);
-        terminal_write("\n");
+    char **pptr = argv; // path ptr
+    for(++pptr; --argc; pptr++){
+        file = vfs_lookup(argv[1]);
+        if (!file || !(file->flags & VFS_FILE)) {
+            terminal_write("cat: ");
+            terminal_write(*pptr);
+            terminal_write(": No such file or directory\n");
+            return -1;
+        }
+        if (file->content) {
+            terminal_write(file->content);
+            terminal_write("\n");
+        }
     }
     return 0;
 }

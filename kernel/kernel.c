@@ -6,6 +6,9 @@
 #include "io.h"
 #include "commands.h"
 
+#define TERM_WIDTH 80
+#define TERM_HEIGHT 25
+
 // Multiboot2 header for GRUB
 __attribute__((section(".multiboot2_header"), used, aligned(8)))
 static const uint32_t multiboot2_header[] = {
@@ -16,7 +19,6 @@ static const uint32_t multiboot2_header[] = {
     0x00000000,
     0x00000008
 };
-
 
 // Simple keyboard input (PS/2 set 1 scancodes)
 static const char scancode_table[0x80] = {
@@ -29,6 +31,17 @@ static const char scancode_table[0x80] = {
     [0x53] = 0x7F /* delete */
 };
 
+static const char scancode_table_shift[0x80] = {
+    0, 0x1B, '!', '@', '#', '$', '%', '^', '&', '*',
+    '(', ')', '_', '+', '\b', '\t', 'Q', 'W', 'E', 'R',
+    'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n', 0,
+    'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':',
+    '"', '~', 0, '|', 'Z', 'X', 'C', 'V', 'B', 'N',
+    'M', '<', '>', '?', 0, '*', 0, ' ', 0,
+    [0x53] = 0x7F
+};
+
+static bool shift_down = false;
 
 static volatile uint16_t* const VGA_BUFFER = (volatile uint16_t*)0xB8000;
 static uint32_t terminal_row = 0;
@@ -45,13 +58,13 @@ static void terminal_putc(char c) {
         if (terminal_row >= 25) terminal_row = 24;
         return;
     }
-    VGA_BUFFER[terminal_row * 80 + terminal_col] = (uint16_t)(' ' | 0x0F00);
-    VGA_BUFFER[terminal_row * 80 + terminal_col] = ((uint16_t)0x0F << 8) | (uint8_t)c;
+    VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] = (uint16_t)(' ' | 0x0F00);
+    VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] = ((uint16_t)0x0F << 8) | (uint8_t)c;
     terminal_col++;
-    if (terminal_col >= 80) {
+    if (terminal_col >= TERM_WIDTH) {
         terminal_col = 0;
         terminal_row++;
-        if (terminal_row >= 25) terminal_row = 24;
+        if (terminal_row >= TERM_HEIGHT) terminal_row = 24;
     }
 }
 
@@ -63,7 +76,7 @@ static void terminal_backspace(void) {
     } else {
         terminal_col--;
     }
-    VGA_BUFFER[terminal_row * 80 + terminal_col] = ((uint16_t)0x0F << 8) | ' ';
+    VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] = ((uint16_t)0x0F << 8) | ' ';
 }
 
 void terminal_write(const char* s) {
@@ -80,11 +93,14 @@ void copy_string(char* dest, const char* src) {
 }
 
 static char keyboard_getchar(void) {
-    while ((inb(0x64) & 1) == 0) ;
-    uint8_t code = inb(0x60);
-    if (code & 0x80) return 0;
-    if (code < 0x80) return scancode_table[code];
-    return 0;
+    for (;;) {
+        while (!(inb(0x64) & 1));
+        uint8_t c = inb(0x60);
+        if (c == 0x2A || c == 0x36) { shift_down = true;  continue; }
+        if (c == 0xAA || c == 0xB6) { shift_down = false; continue; }
+        if (c & 0x80) continue;
+        return shift_down ? scancode_table_shift[c] : scancode_table[c];
+    }
 }
 
 static void read_line(char* buf, size_t size) {
@@ -310,6 +326,16 @@ static int do_fs(int argc, char** argv) {
 static int do_help(int argc, char** argv) {
     return cmd_help(argc, argv);
 }
+static void do_clear(){
+    terminal_row = 0;
+    terminal_col = 0;
+    for(int32_t i = 0; i < TERM_WIDTH; i++)
+        for(int32_t j = 0; j < TERM_HEIGHT; j++)
+            terminal_putc(' ');
+
+    terminal_row = 0;
+    terminal_col = 0;
+}
 
 static size_t str_len(const char* s) {
     size_t l = 0;
@@ -363,7 +389,7 @@ int cmd_nano(int argc, char** argv) {
             }
             size_t i;
             for (i = 0; i < len && i < 4095; i++) file->content[i] = buffer[i];
-            file->content[i] = '\0';
+            file->content[i-1] = '\0'; // remove last new line
             terminal_write("nano: saved\n");
             return 0;
         }
@@ -406,6 +432,7 @@ static void shell_loop(void) {
         if (compare_string(argv[0], "fs") == 0) { do_fs(argc, argv); continue; }
         if (compare_string(argv[0], "nano") == 0) { do_nano(argc, argv); continue; }
         if (compare_string(argv[0], "help") == 0) { do_help(argc, argv); continue; }
+        if (compare_string(argv[0], "clear") == 0) { do_clear(); continue; }
         terminal_write("Unknown command\n");
     }
 }
