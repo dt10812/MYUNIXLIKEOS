@@ -5,6 +5,7 @@
 #include "pmm.h"
 #include "io.h"
 #include "commands.h"
+#include "string.h"
 
 #define TERM_WIDTH 80
 #define TERM_HEIGHT 25
@@ -19,6 +20,16 @@ static const uint32_t multiboot2_header[] = {
     0x00000000,
     0x00000008
 };
+
+void move_cursor(int x, int y) {
+    uint16_t pos = y * 80 + x;
+
+    outb(0x3D4, 0x0E);
+    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+
+    outb(0x3D4, 0x0F);
+    outb(0x3D5, (uint8_t)(pos & 0xFF));
+}
 
 // Simple keyboard input (PS/2 set 1 scancodes)
 static const char scancode_table[0x80] = {
@@ -44,18 +55,23 @@ static const char scancode_table_shift[0x80] = {
 static bool shift_down = false;
 
 static volatile uint16_t* const VGA_BUFFER = (volatile uint16_t*)0xB8000;
-static uint32_t terminal_row = 0;
-static uint32_t terminal_col = 0;
+uint32_t terminal_row = 0;
+uint32_t terminal_col = 0;
 
 vnode_t* vfs_root = NULL;
 vnode_t* current_dir = NULL;
 char fs_type_name[16] = "EXT4";
 
-static void terminal_putc(char c) {
+void terminal_putc(char c) {
+    if(c == 0x1B){ // ignore esc
+        return;
+    }
     if (c == '\n') {
         terminal_col = 0;
         terminal_row++;
         if (terminal_row >= 25) terminal_row = 24;
+        // update cursor pos
+        move_cursor(terminal_col, terminal_row);
         return;
     }
     VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] = (uint16_t)(' ' | 0x0F00);
@@ -66,6 +82,7 @@ static void terminal_putc(char c) {
         terminal_row++;
         if (terminal_row >= TERM_HEIGHT) terminal_row = 24;
     }
+    move_cursor(terminal_col, terminal_row);
 }
 
 static void terminal_backspace(void) {
@@ -77,22 +94,18 @@ static void terminal_backspace(void) {
         terminal_col--;
     }
     VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] = ((uint16_t)0x0F << 8) | ' ';
+    move_cursor(terminal_col, terminal_row);
 }
 
 void terminal_write(const char* s) {
     while (*s) terminal_putc(*s++);
 }
 
-int compare_string(const char* a, const char* b) {
-    while (*a && *b && *a == *b) { a++; b++; }
-    return (int)((unsigned char)*a) - (int)((unsigned char)*b);
-}
-
 void copy_string(char* dest, const char* src) {
     while ((*dest++ = *src++)) ;
 }
 
-static char keyboard_getchar(void) {
+char keyboard_getchar(void) {
     for (;;) {
         while (!(inb(0x64) & 1));
         uint8_t c = inb(0x60);
@@ -103,7 +116,7 @@ static char keyboard_getchar(void) {
     }
 }
 
-static void read_line(char* buf, size_t size) {
+void read_line(char* buf, size_t size) {
     size_t idx = 0;
     while (true) {
         char c = keyboard_getchar();
@@ -224,16 +237,16 @@ void vfs_init(void) {
 
 vnode_t* vfs_lookup(const char* path) {
     if (!path || !*path) return NULL;
-    if (compare_string(path, "/") == 0) return vfs_root;
-    if (compare_string(path, ".") == 0) return current_dir;
-    if (compare_string(path, "..") == 0) {
+    if (strcmp(path, "/") == 0) return vfs_root;
+    if (strcmp(path, ".") == 0) return current_dir;
+    if (strcmp(path, "..") == 0) {
         return current_dir->parent ? current_dir->parent : current_dir;
     }
 
     if (*path == '/') path++;
     for (uint32_t i = 0; i < current_dir->child_count; i++) {
         vnode_t* c = current_dir->children[i];
-        if (compare_string(c->name, path) == 0) return c;
+        if (strcmp(c->name, path) == 0) return c;
     }
     return NULL;
 }
@@ -326,7 +339,8 @@ static int do_fs(int argc, char** argv) {
 static int do_help(int argc, char** argv) {
     return cmd_help(argc, argv);
 }
-static void do_clear(){
+
+void do_clear(){
     terminal_row = 0;
     terminal_col = 0;
     for(int32_t i = 0; i < TERM_WIDTH; i++)
@@ -340,7 +354,7 @@ static int do_echo(int argc, char** argv) {
     return cmd_echo(argc, argv);
 }
 
-static size_t str_len(const char* s) {
+size_t str_len(const char* s) {
     size_t l = 0;
     while (*s++) l++;
     return l;
@@ -382,7 +396,7 @@ int cmd_nano(int argc, char** argv) {
         terminal_write("nano> ");
         read_line(input, sizeof(input));
 
-        if (compare_string(input, ":wq") == 0) {
+        if (strcmp(input, ":wq") == 0) {
             if (!file->content) {
                 file->content = (char*)pmm_alloc_z(4096);
             }
@@ -396,7 +410,7 @@ int cmd_nano(int argc, char** argv) {
             terminal_write("nano: saved\n");
             return 0;
         }
-        if (compare_string(input, ":q!") == 0) {
+        if (strcmp(input, ":q!") == 0) {
             terminal_write("nano: abort\n");
             return 0;
         }
@@ -417,6 +431,14 @@ static int do_nano(int argc, char** argv) {
     return cmd_nano(argc, argv);
 }
 
+static int do_vi(int argc, char** argv) {
+    return cmd_vi(argc, argv);
+}
+
+/* TODO:
+ *  - Move shell to /bin/sh
+ *  - Move Programs to /bin
+ */
 static void shell_loop(void) {
     char buf[256];
     char* argv[16];
@@ -429,18 +451,21 @@ static void shell_loop(void) {
         read_line(buf, sizeof(buf));
         split_args(buf, argv, &argc);
         if (argc == 0) continue;
-        if (compare_string(argv[0], "ls") == 0) { do_ls(argc, argv); continue; }
-        if (compare_string(argv[0], "mkdir") == 0) { do_mkdir(argc, argv); continue; }
-        if (compare_string(argv[0], "touch") == 0) { do_touch(argc, argv); continue; }
-        if (compare_string(argv[0], "cd") == 0) { do_cd(argc, argv); continue; }
-        if (compare_string(argv[0], "cat") == 0) { do_cat(argc, argv); continue; }
-        if (compare_string(argv[0], "grep") == 0) { do_grep(argc, argv); continue; }
-        if (compare_string(argv[0], "fs") == 0) { do_fs(argc, argv); continue; }
-        if (compare_string(argv[0], "nano") == 0) { do_nano(argc, argv); continue; }
-        if (compare_string(argv[0], "help") == 0) { do_help(argc, argv); continue; }
-        if (compare_string(argv[0], "clear") == 0) { do_clear(); continue; }
-        if (compare_string(argv[0], "echo") == 0) { do_echo(argc, argv); continue; }
-        terminal_write("Unknown command\n");
+        if (strcmp(argv[0], "ls") == 0) { do_ls(argc, argv); continue; }
+        if (strcmp(argv[0], "mkdir") == 0) { do_mkdir(argc, argv); continue; }
+        if (strcmp(argv[0], "touch") == 0) { do_touch(argc, argv); continue; }
+        if (strcmp(argv[0], "cd") == 0) { do_cd(argc, argv); continue; }
+        if (strcmp(argv[0], "cat") == 0) { do_cat(argc, argv); continue; }
+        if (strcmp(argv[0], "grep") == 0) { do_grep(argc, argv); continue; }
+        if (strcmp(argv[0], "fs") == 0) { do_fs(argc, argv); continue; }
+        if (strcmp(argv[0], "nano") == 0) { do_nano(argc, argv); continue; }
+        if (strcmp(argv[0], "help") == 0) { do_help(argc, argv); continue; }
+        if (strcmp(argv[0], "clear") == 0) { do_clear(); continue; }
+        if (strcmp(argv[0], "echo") == 0) { do_echo(argc, argv); continue; }
+        if (strcmp(argv[0], "vi") == 0) { do_vi(argc, argv); continue; }
+        terminal_write("sh: command not found: ");
+        terminal_write(argv[0]);
+        terminal_write("\n");
     }
 }
 

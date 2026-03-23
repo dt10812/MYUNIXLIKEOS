@@ -19,5 +19,6 @@ int cmd_fs(int argc, char** argv);
 int cmd_help(int argc, char** argv);
 int cmd_nano(int argc, char** argv);
 int cmd_echo(int argc, char** argv);
+int cmd_vi(int argc, char** argv);
 
 #endif
