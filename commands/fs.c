@@ -1,5 +1,6 @@
 #include "commands.h"
 #include "vfs.h"
+#include "string.h"
 
 extern void terminal_write(const char*);
 extern char fs_type_name[16];
@@ -11,9 +12,9 @@ int cmd_fs(int argc, char** argv) {
     }
 
     const char* name = argv[1];
-    if (!(compare_string(name, "NTFS") == 0 || compare_string(name, "FAT32") == 0 ||
-          compare_string(name, "exFAT") == 0 || compare_string(name, "EXT4") == 0 ||
-          compare_string(name, "APFS") == 0)) {
+    if (!(strcmp(name, "NTFS") == 0 || strcmp(name, "FAT32") == 0 ||
+          strcmp(name, "exFAT") == 0 || strcmp(name, "EXT4") == 0 ||
+          strcmp(name, "APFS") == 0)) {
         terminal_write("fs: unknown type\n");
         return -1;
     }
