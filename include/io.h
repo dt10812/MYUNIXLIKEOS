@@ -26,6 +26,7 @@ extern size_t terminal_row;
 extern size_t terminal_col;
 
 char keyboard_getchar(void);
+char keyboard_pollchar(void);
 
 void read_line(char* buf, size_t size);
 

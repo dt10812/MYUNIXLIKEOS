@@ -28,3 +28,11 @@ The primary objective of this project is to evolve from a basic hobbyist kernel 
 - **Extended CLI Toolset:** We are working to broaden the native command suite beyond basic file manipulation (e.g. `ls`, `cat`, `touch`) to include more complex Unix utilities.
 - **Networking Stack:** In the long term, we aim to implement a network stack to enable basic socket communication and networking capabilities directly from the kernel.
 - - **Proper Documentations** We aim to perfect the documentations to build the OS and also guide our new contributors about how to improve our OS.
+## System Requirements
+To successfully pass the GRUB bootloader and initialize the kernel, the following hardware is required:
+
+- **Processor**: Intel 80386 (i386) or later (32-bit x86 architecture)
+- **Memory (RAM)**: 3.6 MB
+- **Keyboard**: PS/2 (Legacy) or any other keyboards that support Standard ANSI. Cmd/Caps Lock keys not yet mapped.
+- **Video (Display)**: VGA-compatible video card supporting Mode 3 (80x25 Text Mode).
+- **Storage**: None (RAM-Only Execution)

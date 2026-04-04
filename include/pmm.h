@@ -12,6 +12,10 @@ void  pmm_free_page(void* ptr);     /* Mark a page as free */
 void* pmm_alloc_blocks(size_t count);
 void* pmm_alloc_z(size_t size);     /* Allocate zeroed pages */
 
+size_t pmm_total_pages(void);
+size_t pmm_used_pages(void);
+size_t pmm_free_pages(void);
+
 /* Internal bit manipulation */
 void bitmap_set(uint64_t bit);
 void bitmap_clear(uint64_t bit);

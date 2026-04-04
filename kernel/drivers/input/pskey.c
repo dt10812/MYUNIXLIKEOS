@@ -49,6 +49,24 @@ char keyboard_getchar(void) {
     }
 }
 
+char keyboard_pollchar(void) {
+    if (!(inb(0x64) & 1))
+        return 0;
+
+    uint8_t c = inb(0x60);
+    if (c == 0x2A || c == 0x36) {
+        shift_down = true;
+        return 0;
+    }
+    if (c == 0xAA || c == 0xB6) {
+        shift_down = false;
+        return 0;
+    }
+    if (c & 0x80)
+        return 0;
+    return shift_down ? scancode_table_shift[c] : scancode_table[c];
+}
+
 void read_line(char* buf, size_t size) {
     size_t idx = 0;
     while (true) {

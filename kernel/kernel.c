@@ -74,6 +74,23 @@ void* pmm_alloc_z(size_t size) {
     return p;
 }
 
+size_t pmm_total_pages(void) {
+    return MAX_PAGES;
+}
+
+size_t pmm_used_pages(void) {
+    size_t total = 0;
+    for (uint64_t i = 0; i < MAX_PAGES; i++) {
+        if (bitmap_test(i))
+            total++;
+    }
+    return total;
+}
+
+size_t pmm_free_pages(void) {
+    return pmm_total_pages() - pmm_used_pages();
+}
+
 /* kernel space streams */
 
 static unsigned char _stdout_buf[2048];

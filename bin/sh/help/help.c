@@ -6,7 +6,7 @@ extern void terminal_write(const char*);
 
 int cmd_help(int argc, char** argv) {
     if (argc < 2) {
-        terminal_write("Available: cat, cd, color, echo, fs, grep, help, ls, mkdir, touch, clear\n");
+        terminal_write("Available: cat, cd, color, echo, fs, grep, help, ls, memory, mkdir, snake, touch, clear\n");
         terminal_write("Usage: help [command]\n");
         return 0;
     }
@@ -27,6 +27,14 @@ int cmd_help(int argc, char** argv) {
         printf("color <foreground> [background]: Change text foreground and optional background.\n");
         printf("Colors are names or 0xN, and 0xNN can set both at once.\n");
         printf("Supported names: black, blue, green, cyan, red, magenta, brown, lightgray, darkgray, lightblue, lightgreen, lightcyan, lightred, lightmagenta, yellow, white.\n");
+    } else if (!strcmp(cmd, "memory")) {
+        printf("memory: Show OS memory usage for physical page allocation.\n");
+        printf("Usage: memory\n");
+    } else if (!strcmp(cmd, "snake")) {
+        printf("snake: Start a simple snake game using W,A,S,D to move.\n");
+        printf("Use: snake          # start game\n");
+        printf("     snake color <snake|food|border|board|text> <color>\n");
+        printf("     snake reset     # restore default game colors\n");
     } else if (!strcmp(cmd, "grep")) {
         printf("grep [pattern] [file]: Search in file.\n");
     } else if (!strcmp(cmd, "mkdir")) {
