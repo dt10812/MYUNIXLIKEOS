@@ -7,6 +7,7 @@
 static volatile uint16_t* const VGA_BUFFER = (volatile uint16_t*)0xB8000;
 size_t terminal_row = 0;
 size_t terminal_col = 0;
+uint8_t terminal_color = 0x0F;
 
 void move_cursor(int x, int y) {
     uint16_t pos = y * 80 + x;
@@ -27,7 +28,7 @@ void terminal_putc(char c) {
         return;
     }
     VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] =
-        ((uint16_t)0x0F << 8) | (uint8_t)c;
+        ((uint16_t)terminal_color << 8) | (uint8_t)c;
     terminal_col++;
     if (terminal_col >= TERM_WIDTH) {
         terminal_col = 0;
@@ -48,6 +49,14 @@ void terminal_backspace(void) {
     }
     VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] = ' ';
     move_cursor(terminal_col, terminal_row);
+}
+
+void terminal_set_color(uint8_t color) {
+    terminal_color = color;
+}
+
+uint8_t terminal_get_color(void) {
+    return terminal_color;
 }
 
 void terminal_write(const char* s) {

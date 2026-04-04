@@ -33,6 +33,9 @@ void move_cursor(int x, int y);
 
 void terminal_putc(char c);
 
+void terminal_set_color(uint8_t color);
+uint8_t terminal_get_color(void);
+
 void terminal_backspace(void);
 
 void terminal_write(const char* s);

@@ -71,6 +71,7 @@ SRC = \
 	$(BIN_DIR)/cat/cat.c \
 	$(BIN_DIR)/grep/grep.c \
 	$(BIN_DIR)/echo/echo.c \
+	$(BIN_DIR)/color/color.c \
 	$(BIN_DIR)/vi/vi.c \
 	$(BIN_DIR)/nano/nano.c \
 	$(CMD_DIR)/sh.c \
