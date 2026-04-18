@@ -30,6 +30,22 @@ int cmd_vmstat(int argc, char** argv);
 int cmd_snake(int argc, char** argv);
 int cmd_vi(int argc, char** argv);
 void cmd_clear();
+int cmd_pwd(int argc, char** argv);
+int cmd_date(int argc, char** argv);
+int cmd_rm(int argc, char** argv);
+int cmd_cp(int argc, char** argv);
+int cmd_mv(int argc, char** argv);
+int cmd_shutdown(int argc, char** argv);
+int cmd_reboot(int argc, char** argv);
+int cmd_calc(int argc, char** argv);
+int cmd_man(int argc, char** argv);
+int cmd_wc(int argc, char** argv);
+int cmd_head(int argc, char** argv);
+int cmd_tail(int argc, char** argv);
+int cmd_sort(int argc, char** argv);
+int cmd_uniq(int argc, char** argv);
+int cmd_whoami(int argc, char** argv);
+int cmd_password(int argc, char** argv);
 
 void sh(void);
 

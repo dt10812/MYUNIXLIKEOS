@@ -6,7 +6,11 @@ extern void terminal_write(const char*);
 
 int cmd_help(int argc, char** argv) {
     if (argc < 2) {
-        terminal_write("Available: cat, cd, color, echo, free, fs, grep, help, ls, memory, mkdir, snake, top, touch, vmstat, clear\n");
+        terminal_write("Available commands:\n");
+        terminal_write("FILE: cat, cd, clear, cp, grep, head, ls, mkdir, mv, nano, rm, sort, tail, touch, uniq, wc\n");
+        terminal_write("UTIL: calc, date, echo, man, password, pwd, color, memory, free, top, vmstat, whoami\n");
+        terminal_write("GAMES: snake, vi\n");
+        terminal_write("SYSTEM: help, shutdown, reboot\n");
         terminal_write("Usage: help [command]\n");
         return 0;
     }
@@ -19,6 +23,21 @@ int cmd_help(int argc, char** argv) {
         printf("cd [dir]: Change directory.\n");
     } else if (!strcmp(cmd, "cat")) {
         printf("cat [file]: Read file content.\n");
+    } else if (!strcmp(cmd, "pwd")) {
+        printf("pwd: Print working directory.\n");
+    } else if (!strcmp(cmd, "date")) {
+        printf("date: Display current date and time.\n");
+    } else if (!strcmp(cmd, "cp")) {
+        printf("cp [source] [dest]: Copy file from source to destination.\n");
+    } else if (!strcmp(cmd, "mv")) {
+        printf("mv [source] [dest]: Move/rename file.\n");
+    } else if (!strcmp(cmd, "rm")) {
+        printf("rm [file]: Remove (delete) a file.\n");
+    } else if (!strcmp(cmd, "nano")) {
+        printf("nano [file]: Edit file with enhanced nano editor.\n");
+        printf("  Ctrl+O Save  Ctrl+X Exit  Ctrl+G Help\n");
+        printf("  Ctrl+A Home  Ctrl+E End   Ctrl+W Search\n");
+        printf("  Ctrl+P Up    Ctrl+N Down  Ctrl+L GoToLine\n");
     } else if (!strcmp(cmd, "fs")) {
         printf("fs [type]: Supports ntfs, exfat, fat32, ext4, apfs.\n");
     } else if (!strcmp(cmd, "echo")) {
@@ -50,6 +69,48 @@ int cmd_help(int argc, char** argv) {
         printf("mkdir [name]: Create directory.\n");
     } else if (!strcmp(cmd, "touch")) {
         printf("touch [file]: Create empty file.\n");
+    } else if (!strcmp(cmd, "shutdown")) {
+        printf("shutdown: Shut down the system gracefully.\n");
+    } else if (!strcmp(cmd, "reboot")) {
+        printf("reboot: Reboot the system.\n");
+    } else if (!strcmp(cmd, "calc")) {
+        printf("calc [expression]: Simple calculator supporting +, -, *, /, ()\n");
+        printf("Examples:\n");
+        printf("  calc \"2+3\"\n");
+        printf("  calc \"10-5\"\n");
+        printf("  calc \"3*4\"\n");
+        printf("  calc \"20/4\"\n");
+        printf("  calc \"(2+3)*4\"\n");
+    } else if (!strcmp(cmd, "man")) {
+        printf("man [command]: Display manual pages for commands.\n");
+        printf("Usage: man ls, man cat, man wc, etc.\n");
+    } else if (!strcmp(cmd, "wc")) {
+        printf("wc [-lwc] [file]: Count lines, words, and characters.\n");
+        printf("  -l    Count lines only\n");
+        printf("  -w    Count words only\n");
+        printf("  -c    Count characters only\n");
+    } else if (!strcmp(cmd, "head")) {
+        printf("head [-n NUM] [file]: Display first NUM lines (default 10).\n");
+        printf("Usage: head -n 5 file.txt\n");
+    } else if (!strcmp(cmd, "tail")) {
+        printf("tail [-n NUM] [file]: Display last NUM lines (default 10).\n");
+        printf("Usage: tail -n 5 file.txt\n");
+    } else if (!strcmp(cmd, "sort")) {
+        printf("sort [file]: Sort file lines alphabetically.\n");
+        printf("Usage: sort file.txt\n");
+    } else if (!strcmp(cmd, "uniq")) {
+        printf("uniq [file]: Remove consecutive duplicate lines.\n");
+        printf("Usage: uniq file.txt\n");
+    } else if (!strcmp(cmd, "whoami")) {
+        printf("whoami: Display current user name.\n");
+    } else if (!strcmp(cmd, "password")) {
+        printf("password: Set or change system password.\n");
+        printf("Usage: password\n");
+        printf("Note: If password is set, you'll be prompted for old password first.\n");
+    } else if (!strcmp(cmd, "ls")) {
+        printf("ls [-al] [dir]: List directory contents.\n");
+        printf("  -a    Show hidden files (starting with .)\n");
+        printf("  -l    Long format with sizes and types\n");
     } else if (!strcmp(cmd, "help")) {
         printf("help [cmd]: Detailed info on commands.\n");
     } else {

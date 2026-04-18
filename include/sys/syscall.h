@@ -46,6 +46,32 @@
 /* unistd */
 #define SYS_execl          0x0023   /* for: int execl(const char *path, const char *arg0, ...) */
 #define SYS_exit           0x0024   /* for: exit(int ret) */
+#define SYS_fork           0x0025   /* for: pid_t fork(void) - returns: child PID in parent, 0 in child */
+#define SYS_getpid         0x0026   /* for: pid_t getpid(void) - returns: process ID */
+#define SYS_getppid        0x0027   /* for: pid_t getppid(void) - returns: parent process ID */
+#define SYS_getuid         0x0028   /* for: uid_t getuid(void) - returns: user ID */
+#define SYS_geteuid        0x0029   /* for: uid_t geteuid(void) - returns: effective user ID */
+#define SYS_setuid         0x002A   /* for: int setuid(uid_t uid) - returns: 0 on success */
+#define SYS_getgid         0x002B   /* for: gid_t getgid(void) - returns: group ID */
+#define SYS_getegid        0x002C   /* for: gid_t getegid(void) - returns: effective group ID */
+#define SYS_setgid         0x002D   /* for: int setgid(gid_t gid) - returns: 0 on success */
+#define SYS_wait           0x002E   /* for: pid_t wait(int *status) - returns: child PID */
+#define SYS_waitpid        0x002F   /* for: pid_t waitpid(pid_t pid, int *status, int flags) */
+#define SYS_kill           0x0030   /* for: int kill(pid_t pid, int sig) - returns: 0 on success */
+#define SYS_pause          0x0031   /* for: int pause(void) - returns: -1 on signal */
+#define SYS_sleep          0x0032   /* for: unsigned int sleep(unsigned int seconds) - returns: seconds remaining */
+#define SYS_usleep         0x0033   /* for: int usleep(useconds_t usec) - returns: 0 on success */
+#define SYS_alarm          0x0034   /* for: unsigned int alarm(unsigned int seconds) - returns: previous alarm */
+#define SYS_brk            0x0035   /* for: int brk(void *addr) - returns: 0 on success */
+#define SYS_sbrk           0x0036   /* for: void *sbrk(intptr_t increment) - returns: previous break */
+#define SYS_getenv         0x0037   /* for: char *getenv(const char *name) - returns: env value or NULL */
+#define SYS_setenv         0x0038   /* for: int setenv(const char *name, const char *value, int overwrite) */
+#define SYS_unsetenv       0x0039   /* for: int unsetenv(const char *name) */
+#define SYS_time           0x003A   /* for: time_t time(time_t *t) - returns: current time */
+#define SYS_gettimeofday   0x003B   /* for: int gettimeofday(struct timeval *tv, struct timezone *tz) */
+#define SYS_mmap           0x003C   /* for: void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) */
+#define SYS_munmap         0x003D   /* for: int munmap(void *addr, size_t length) */
+#define SYS_mprotect       0x003E   /* for: int mprotect(void *addr, size_t len, int prot) */
 
 /*
  * Usage is sort of unintuitive:

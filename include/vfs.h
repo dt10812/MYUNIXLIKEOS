@@ -37,4 +37,17 @@ vnode_t* vfs_lookup(const char* path);
 int k_install(const char* name, const uint8_t* data, uint32_t size);
 int k_exec(const char *path, const char **argv);
 
+/* Enhanced VFS operations */
+int vfs_stat(const char* path, vnode_t** out);
+int vfs_isdir(const char* path);
+int vfs_isfile(const char* path);
+uint32_t vfs_filesize(const char* path);
+int vfs_readdir(const char* path, vnode_t*** entries, uint32_t* count);
+const char* vfs_read_file(const char* path, uint32_t* size_out);
+int vfs_write_file(const char* path, const char* content, uint32_t size);
+int vfs_append_file(const char* path, const char* content, uint32_t size);
+vnode_t* vfs_find_in_path(vnode_t* dir, const char* name);
+uint32_t vfs_child_count(const char* path);
+vnode_t* vfs_get_child(const char* path, uint32_t index);
+
 #endif

@@ -56,6 +56,7 @@ USER_LDFLAGS = -m elf_i386 -T user.ld
 SRC = \
 	$(SYS_DIR)/kernel.c \
 	$(SYS_DIR)/fs.c \
+	$(SYS_DIR)/file_cache.c \
 	$(SYS_DIR)/idt.c \
 	$(SYS_DIR)/gdt.c \
 	$(SYS_DIR)/syscall.c \
@@ -79,6 +80,22 @@ SRC = \
 	$(BIN_DIR)/snake/snake.c \
 	$(BIN_DIR)/vi/vi.c \
 	$(BIN_DIR)/nano/nano.c \
+	$(BIN_DIR)/pwd/pwd.c \
+	$(BIN_DIR)/date/date.c \
+	$(BIN_DIR)/rm/rm.c \
+	$(BIN_DIR)/cp/cp.c \
+	$(BIN_DIR)/mv/mv.c \
+	$(BIN_DIR)/shutdown/shutdown.c \
+	$(BIN_DIR)/reboot/reboot.c \
+	$(BIN_DIR)/calc/calc.c \
+	$(BIN_DIR)/man/man.c \
+	$(BIN_DIR)/wc/wc.c \
+	$(BIN_DIR)/head/head.c \
+	$(BIN_DIR)/tail/tail.c \
+	$(BIN_DIR)/sort/sort.c \
+	$(BIN_DIR)/uniq/uniq.c \
+	$(BIN_DIR)/whoami/whoami.c \
+	$(BIN_DIR)/password/password.c \
 	$(CMD_DIR)/sh.c \
 	$(CMD_DIR)/cd/cd.c \
 	$(CMD_DIR)/help/help.c \
@@ -100,6 +117,7 @@ STRING_SRC = \
 	$(STRING_DIR)/strlen.c \
 	$(STRING_DIR)/strcpy.c \
 	$(STRING_DIR)/strstr.c \
+	$(STRING_DIR)/strchr.c \
 	$(STRING_DIR)/strncpy.c \
 
 UNISTD_SRC = \

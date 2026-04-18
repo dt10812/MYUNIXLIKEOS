@@ -196,3 +196,153 @@ int k_exec(const char *path, const char **argv) {
 
     return 0;
 }
+
+/* ── Enhanced VFS Operations ─────────────────────────────────────────────── */
+
+/* vfs_stat - Get file/directory information */
+int vfs_stat(const char* path, vnode_t** out) {
+    if (!path || !*path || !out) return -1;
+    
+    vnode_t* node = vfs_lookup(path);
+    if (!node) return -1;
+    
+    *out = node;
+    return 0;
+}
+
+/* vfs_isdir - Check if node is a directory */
+int vfs_isdir(const char* path) {
+    vnode_t* node = vfs_lookup(path);
+    if (!node) return 0;
+    return (node->flags & VFS_DIRECTORY) != 0;
+}
+
+/* vfs_isfile - Check if node is a regular file */
+int vfs_isfile(const char* path) {
+    vnode_t* node = vfs_lookup(path);
+    if (!node) return 0;
+    return (node->flags & VFS_FILE) != 0;
+}
+
+/* vfs_filesize - Get file size in bytes */
+uint32_t vfs_filesize(const char* path) {
+    vnode_t* node = vfs_lookup(path);
+    if (!node) return 0;
+    if (!(node->flags & VFS_FILE)) return 0;
+    
+    if (node->content) {
+        return strlen(node->content);
+    }
+    return 0;
+}
+
+/* vfs_readdir - List contents of a directory */
+int vfs_readdir(const char* path, vnode_t*** entries, uint32_t* count) {
+    if (!path || !*path || !entries || !count) return -1;
+    
+    vnode_t* dir = vfs_lookup(path);
+    if (!dir || !(dir->flags & VFS_DIRECTORY)) return -1;
+    
+    if (dir->child_count == 0) {
+        *count = 0;
+        *entries = NULL;
+        return 0;
+    }
+    
+    *entries = dir->children;
+    *count = dir->child_count;
+    return 0;
+}
+
+/* vfs_read_file - Read entire file content */
+const char* vfs_read_file(const char* path, uint32_t* size_out) {
+    vnode_t* node = vfs_lookup(path);
+    if (!node || !(node->flags & VFS_FILE)) {
+        if (size_out) *size_out = 0;
+        return NULL;
+    }
+    
+    if (size_out) {
+        if (node->content) {
+            *size_out = strlen(node->content);
+        } else {
+            *size_out = 0;
+        }
+    }
+    
+    return node->content;
+}
+
+/* vfs_write_file - Write content to file */
+int vfs_write_file(const char* path, const char* content, uint32_t size) {
+    vnode_t* node = vfs_lookup(path);
+    if (!node || !(node->flags & VFS_FILE)) return -1;
+    
+    if (!content || !size) {
+        if (node->content) node->content[0] = '\0';
+        node->size = 0;
+        return 0;
+    }
+    
+    /* For now, we have fixed 64-byte buffers. Copy what fits. */
+    if (!node->content) {
+        node->content = (char*)pmm_alloc_z(64);
+        if (!node->content) return -1;
+    }
+    
+    uint32_t copy_size = size < 63 ? size : 63;
+    memcpy(node->content, content, copy_size);
+    node->content[copy_size] = '\0';
+    node->size = copy_size;
+    
+    return 0;
+}
+
+/* vfs_append_file - Append content to file */
+int vfs_append_file(const char* path, const char* content, uint32_t size) {
+    vnode_t* node = vfs_lookup(path);
+    if (!node || !(node->flags & VFS_FILE)) return -1;
+    
+    if (!node->content) {
+        return vfs_write_file(path, content, size);
+    }
+    
+    uint32_t current_size = strlen(node->content);
+    uint32_t available = 64 - current_size - 1;
+    
+    if (available <= 0) return -1;  /* File full */
+    
+    uint32_t append_size = size < available ? size : available;
+    memcpy(node->content + current_size, content, append_size);
+    node->content[current_size + append_size] = '\0';
+    node->size = current_size + append_size;
+    
+    return 0;
+}
+
+/* vfs_find_in_path - Find a file within a directory */
+vnode_t* vfs_find_in_path(vnode_t* dir, const char* name) {
+    if (!dir || !name || !(dir->flags & VFS_DIRECTORY)) return NULL;
+    
+    for (uint32_t i = 0; i < dir->child_count; i++) {
+        if (strcmp(dir->children[i]->name, name) == 0) {
+            return dir->children[i];
+        }
+    }
+    return NULL;
+}
+
+/* vfs_child_count - Get number of children in directory */
+uint32_t vfs_child_count(const char* path) {
+    vnode_t* node = vfs_lookup(path);
+    if (!node || !(node->flags & VFS_DIRECTORY)) return 0;
+    return node->child_count;
+}
+
+/* vfs_get_child - Get child vnode by index */
+vnode_t* vfs_get_child(const char* path, uint32_t index) {
+    vnode_t* node = vfs_lookup(path);
+    if (!node || !(node->flags & VFS_DIRECTORY)) return NULL;
+    if (index >= node->child_count) return NULL;
+    return node->children[index];
+}

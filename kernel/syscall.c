@@ -121,6 +121,106 @@ void syscall_handler(struct trapframe *regs) {
             /* temp fix till sh is a prog */
             sh();
             break;
+        case SYS_getpid:
+            /* Return fixed PID for now (single process system) */
+            regs->eax = 1;
+            break;
+        case SYS_getppid:
+            /* Return parent PID (always init = 1 for now) */
+            regs->eax = 1;
+            break;
+        case SYS_getuid:
+            /* Return root user ID */
+            regs->eax = 0;
+            break;
+        case SYS_geteuid:
+            /* Return effective UID (same as UID for now) */
+            regs->eax = 0;
+            break;
+        case SYS_setuid:
+            /* Allow setuid (always succeed for now) */
+            regs->eax = 0;
+            break;
+        case SYS_getgid:
+            /* Return root group ID */
+            regs->eax = 0;
+            break;
+        case SYS_getegid:
+            /* Return effective GID (same as GID for now) */
+            regs->eax = 0;
+            break;
+        case SYS_setgid:
+            /* Allow setgid (always succeed for now) */
+            regs->eax = 0;
+            break;
+        case SYS_fork:
+            /* Fork not yet implemented */
+            regs->eax = (uint32_t)-1;
+            break;
+        case SYS_wait:
+            /* Wait not yet implemented */
+            regs->eax = (uint32_t)-1;
+            break;
+        case SYS_waitpid:
+            /* Waitpid not yet implemented */
+            regs->eax = (uint32_t)-1;
+            break;
+        case SYS_kill:
+            /* Kill not yet implemented */
+            regs->eax = (uint32_t)-1;
+            break;
+        case SYS_pause:
+            /* Pause - sleep until signal (not implemented, just return) */
+            regs->eax = 0;
+            break;
+        case SYS_sleep:
+            /* Sleep for N seconds - just return 0 for now */
+            regs->eax = 0;
+            break;
+        case SYS_usleep:
+            /* Sleep for microseconds - just return 0 for now */
+            regs->eax = 0;
+            break;
+        case SYS_alarm:
+            /* Alarm - not implemented */
+            regs->eax = 0;
+            break;
+        case SYS_brk:
+            /* Heap break - just return 0 for now */
+            regs->eax = 0;
+            break;
+        case SYS_sbrk:
+            /* Heap increment - return error for now */
+            regs->eax = (uint32_t)-1;
+            break;
+        case SYS_getenv:
+            /* getenv - not implemented, return NULL */
+            regs->eax = 0;
+            break;
+        case SYS_setenv:
+            /* setenv - not implemented, return error */
+            regs->eax = (uint32_t)-1;
+            break;
+        case SYS_unsetenv:
+            /* unsetenv - not implemented, return error */
+            regs->eax = (uint32_t)-1;
+            break;
+        case SYS_gettimeofday:
+            /* gettimeofday - similar to clock_gettime */
+            regs->eax = 0;
+            break;
+        case SYS_mmap:
+            /* mmap - not implemented */
+            regs->eax = (uint32_t)-1;
+            break;
+        case SYS_munmap:
+            /* munmap - not implemented */
+            regs->eax = 0;
+            break;
+        case SYS_mprotect:
+            /* mprotect - not implemented */
+            regs->eax = 0;
+            break;
         default:
             regs->eax = (uint32_t)-1;
             break;

@@ -22,11 +22,14 @@ static char nano_cut_buffer[NANO_BUF];
 
 void nano_help(void) {
     cmd_clear();
-    terminal_write("Nano Help:\n");
-    terminal_write("^G Help     ^O WriteOut  ^R Read File  ^Y Prev Pg\n");
-    terminal_write("^K Cut      ^U UnCut     ^C Cur Pos    ^X Exit\n");
-    terminal_write("^J Justify  ^W Where Is  ^V Next Pg    ^T To Spell\n");
+    terminal_write("Nano Help:\n\n");
+    terminal_write("^G Help     ^O Save    ^R Read      ^X Exit\n");
+    terminal_write("^K Delete   ^U Undo   ^W Search    ^Y PrevPage\n");
+    terminal_write("^V NextPage ^A Home   ^E End       ^D Delete\n");
+    terminal_write("^B Left     ^F Right  ^N Down      ^P Up\n");
+    terminal_write("^C Position ^J Justify ^T Spell    ^L GoToLine\n\n");
     terminal_write("Type text normally. Use Ctrl+O to save and Ctrl+X to exit.\n");
+    terminal_write("Arrow navigation: Use Ctrl+A/F (left/right), Ctrl+P/N (up/down)\n");
     terminal_write("Press any key to continue...\n");
     keyboard_getchar();
 }
@@ -167,6 +170,33 @@ static void nano_cut_line(char* buffer, size_t* len, size_t* cursor_pos) {
     *cursor_pos = start;
 }
 
+static void nano_delete_line(char* buffer, size_t* len, size_t* cursor_pos) {
+    nano_cut_line(buffer, len, cursor_pos);
+}
+
+static void nano_goto_line(char* buffer, size_t len, size_t* cursor_pos, size_t* view_line) {
+    (void)buffer;
+    (void)len;
+    char line_str[32];
+    terminal_write("Enter line number: ");
+    read_line(line_str, sizeof(line_str));
+    size_t line_num = 0;
+    for (const char* p = line_str; *p >= '0' && *p <= '9'; p++) {
+        line_num = line_num * 10 + (*p - '0');
+    }
+    if (line_num < 1) line_num = 1;
+    
+    size_t current_line = 0;
+    *cursor_pos = 0;
+    for (size_t i = 0; i < len && current_line < line_num - 1; i++) {
+        if (buffer[i] == '\n') {
+            current_line++;
+            *cursor_pos = i + 1;
+        }
+    }
+    *view_line = current_line > NANO_ROWS / 2 ? current_line - NANO_ROWS / 2 : 0;
+}
+
 static void nano_paste(char* buffer, size_t* len, size_t* cursor_pos) {
     size_t cut_len = strlen(nano_cut_buffer);
     if (*len + cut_len >= NANO_BUF) {
@@ -293,8 +323,14 @@ int cmd_nano(int argc, char** argv) {
             printf("Ln %u, Col %u, Size %u\n", (unsigned)line + 1, (unsigned)col + 1, (unsigned)len);
             continue;
         }
-        if (c == 0x0E) {
-            nano_justify_line(buffer, &len, cursor_pos);
+        /* Ctrl+H - Delete line (Delete) */
+        if (c == 0x08 || c == 0x7F) {
+            if (cursor_pos > 0) {
+                memmove(buffer + cursor_pos - 1, buffer + cursor_pos, len - cursor_pos);
+                cursor_pos--;
+                len--;
+                buffer[len] = '\0';
+            }
             continue;
         }
         if (c == 0x17) {
@@ -306,6 +342,61 @@ int cmd_nano(int argc, char** argv) {
                 terminal_write("Spell: word looks okay\n");
             else
                 terminal_write("Spell: unknown word\n");
+            continue;
+        }
+        /* Ctrl+A - Home (go to start of line) */
+        if (c == 0x01) {
+            cursor_pos = nano_line_start(buffer, cursor_pos);
+            continue;
+        }
+        /* Ctrl+B - Left */
+        if (c == 0x02) {
+            if (cursor_pos > 0) cursor_pos--;
+            continue;
+        }
+        /* Ctrl+F - Right */
+        if (c == 0x06) {
+            if (cursor_pos < len) cursor_pos++;
+            continue;
+        }
+        /* Ctrl+P - Previous line (Up) */
+        if (c == 0x10) {
+            size_t line_start = nano_line_start(buffer, cursor_pos);
+            if (line_start > 0) {
+                size_t prev_line_start = nano_line_start(buffer, line_start - 2);
+                size_t col = cursor_pos - line_start;
+                size_t prev_line_end = nano_line_end(buffer, prev_line_start, len);
+                size_t prev_line_len = prev_line_end - prev_line_start;
+                if (col > prev_line_len) col = prev_line_len;
+                cursor_pos = prev_line_start + col;
+            }
+            continue;
+        }
+        /* Ctrl+Z - Next line (Down) instead of suspending */
+        if (c == 0x1A) {
+            size_t line_end = nano_line_end(buffer, cursor_pos, len);
+            if (line_end < len && buffer[line_end] == '\n') {
+                size_t next_line_start = line_end + 1;
+                size_t col = cursor_pos - nano_line_start(buffer, cursor_pos);
+                size_t next_line_end = nano_line_end(buffer, next_line_start, len);
+                size_t next_line_len = next_line_end - next_line_start;
+                if (col > next_line_len) col = next_line_len;
+                cursor_pos = next_line_start + col;
+            }
+            continue;
+        }
+        /* Ctrl+L - Go to line */
+        if (c == 0x0C) {
+            nano_goto_line(buffer, len, &cursor_pos, &view_line);
+            continue;
+        }
+        /* Ctrl+D - Delete character at cursor */
+        if (c == 0x04) {
+            if (cursor_pos < len) {
+                memmove(buffer + cursor_pos, buffer + cursor_pos + 1, len - cursor_pos - 1);
+                len--;
+                buffer[len] = '\0';
+            }
             continue;
         }
         if (c == 0x18) {

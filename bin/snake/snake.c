@@ -7,11 +7,9 @@
 
 #define VGA_BUFFER ((volatile uint16_t*)0xB8000)
 
-#define BOARD_ORIGIN_X 1
-#define BOARD_ORIGIN_Y 1
-#define BOARD_WIDTH  30
-#define BOARD_HEIGHT 16
-#define BOARD_MAX_SNAKE 128
+#define MAX_FOODS 5
+#define BOARD_MAX_SNAKE 256
+#define GAME_SPEED 3  /* Higher = slower */
 
 static const struct {
     const char *name;
@@ -44,8 +42,9 @@ static uint32_t snake_rng = 0x12345678;
 
 static uint8_t snake_x[BOARD_MAX_SNAKE];
 static uint8_t snake_y[BOARD_MAX_SNAKE];
-static uint8_t food_x;
-static uint8_t food_y;
+static uint8_t food_x[MAX_FOODS];
+static uint8_t food_y[MAX_FOODS];
+static uint8_t food_count;
 static uint8_t snake_length;
 
 static void snake_set_color(uint8_t attr) {
@@ -86,20 +85,33 @@ static bool snake_occupies(uint8_t x, uint8_t y) {
     return false;
 }
 
+static bool snake_has_food(uint8_t x, uint8_t y) {
+    for (uint8_t i = 0; i < food_count; i++) {
+        if (food_x[i] == x && food_y[i] == y)
+            return true;
+    }
+    return false;
+}
+
 static void snake_place_food(void) {
+    if (food_count >= MAX_FOODS) return;
+    
     while (true) {
-        uint8_t x = (snake_random() % (BOARD_WIDTH - 2)) + 1;
-        uint8_t y = (snake_random() % (BOARD_HEIGHT - 2)) + 1;
-        if (!snake_occupies(x, y)) {
-            food_x = x;
-            food_y = y;
+        uint8_t x = (snake_random() % (TERM_WIDTH - 4)) + 2;
+        uint8_t y = (snake_random() % (TERM_HEIGHT - 4)) + 2;
+        
+        if (!snake_occupies(x, y) && !snake_has_food(x, y)) {
+            food_x[food_count] = x;
+            food_y[food_count] = y;
+            food_count++;
             return;
         }
     }
 }
 
 static void snake_put_cell(uint8_t x, uint8_t y, char ch, uint8_t attr) {
-    uint16_t pos = (BOARD_ORIGIN_Y + y) * TERM_WIDTH + (BOARD_ORIGIN_X + x);
+    if (x >= TERM_WIDTH || y >= TERM_HEIGHT) return;
+    uint16_t pos = y * TERM_WIDTH + x;
     VGA_BUFFER[pos] = ((uint16_t)attr << 8) | (uint8_t)ch;
 }
 
@@ -109,58 +121,99 @@ static void snake_clear_screen(void) {
     }
     terminal_row = 0;
     terminal_col = 0;
-    move_cursor(0, 0);
-}
-
-static void snake_draw_board_background(void) {
-    for (uint8_t y = 1; y + 1 < BOARD_HEIGHT; y++) {
-        for (uint8_t x = 1; x + 1 < BOARD_WIDTH; x++) {
-            snake_put_cell(x, y, ' ', board_color);
-        }
-    }
 }
 
 static void snake_draw_border(void) {
-    for (uint8_t x = 0; x < BOARD_WIDTH; x++) {
-        snake_put_cell(x, 0, '#', border_color);
-        snake_put_cell(x, BOARD_HEIGHT - 1, '#', border_color);
+    /* Top and bottom borders */
+    for (uint8_t x = 0; x < TERM_WIDTH; x++) {
+        snake_put_cell(x, 0, '=', border_color);
+        snake_put_cell(x, TERM_HEIGHT - 1, '=', border_color);
     }
-    for (uint8_t y = 1; y + 1 < BOARD_HEIGHT; y++) {
-        snake_put_cell(0, y, '#', border_color);
-        snake_put_cell(BOARD_WIDTH - 1, y, '#', border_color);
+    /* Left and right borders */
+    for (uint8_t y = 1; y < TERM_HEIGHT - 1; y++) {
+        snake_put_cell(0, y, '|', border_color);
+        snake_put_cell(TERM_WIDTH - 1, y, '|', border_color);
     }
 }
 
 static void snake_draw_snake(void) {
     if (snake_length == 0) return;
-    snake_put_cell(snake_x[0], snake_y[0], 'O', snake_color);
+    snake_put_cell(snake_x[0], snake_y[0], '@', snake_color);
     for (uint8_t i = 1; i < snake_length; i++) {
         snake_put_cell(snake_x[i], snake_y[i], 'o', snake_color);
     }
 }
 
-static void snake_delay(void) {
-    for (volatile uint32_t i = 0; i < 2500000; i++) {
-        __asm__ volatile ("nop");
+static void snake_draw_foods(void) {
+    for (uint8_t i = 0; i < food_count; i++) {
+        snake_put_cell(food_x[i], food_y[i], '*', food_color);
     }
 }
 
-static void snake_draw_info(int score) {
-    uint8_t previous = terminal_get_color();
-    snake_set_color(text_color);
-    move_cursor(0, BOARD_ORIGIN_Y + BOARD_HEIGHT);
-    printf("Score: %d  Use W,A,S,D to move. Press Q to quit.\n", score);
-    snake_set_color(previous);
-}
-
-static void snake_show_game_over(int score) {
-    uint8_t previous = terminal_get_color();
-    snake_set_color(text_color);
-    move_cursor(0, BOARD_ORIGIN_Y + BOARD_HEIGHT + 1);
-    printf("Game Over! Score: %d\n", score);
-    printf("Press any key to return to shell.\n");
-    snake_set_color(previous);
-    keyboard_getchar();
+static void snake_draw_status(int score) {
+    /* Draw status line at bottom */
+    uint16_t pos = (TERM_HEIGHT - 1) * TERM_WIDTH;
+    
+    /* Clear status line */
+    for (uint16_t i = 0; i < TERM_WIDTH; i++) {
+        VGA_BUFFER[pos + i] = ((uint16_t)text_color << 8) | ' ';
+    }
+    
+    /* Draw borders at edges */
+    VGA_BUFFER[pos] = ((uint16_t)border_color << 8) | '|';
+    VGA_BUFFER[pos + TERM_WIDTH - 1] = ((uint16_t)border_color << 8) | '|';
+    
+    /* Write status text */
+    const char* status = "Score:        Foods:    Length:    Q=Quit  W/A/S/D=Move";
+    uint16_t idx = 1;
+    for (uint16_t i = 0; status[i] && idx < TERM_WIDTH - 1; i++, idx++) {
+        VGA_BUFFER[pos + idx] = ((uint16_t)text_color << 8) | status[i];
+    }
+    
+    /* Write score value */
+    char buf[16];
+    int len = 0, temp = score;
+    if (temp == 0) {
+        buf[0] = '0';
+        len = 1;
+    } else {
+        while (temp > 0 && len < 15) {
+            buf[len++] = '0' + (temp % 10);
+            temp /= 10;
+        }
+        for (int i = 0; i < len / 2; i++) {
+            char tmp = buf[i];
+            buf[i] = buf[len - 1 - i];
+            buf[len - 1 - i] = tmp;
+        }
+    }
+    for (int i = 0; i < len && i < 3; i++) {
+        VGA_BUFFER[pos + 8 + i] = ((uint16_t)text_color << 8) | buf[i];
+    }
+    
+    /* Write food count */
+    VGA_BUFFER[pos + 23] = ((uint16_t)text_color << 8) | ('0' + food_count);
+    
+    /* Write length value */
+    temp = snake_length;
+    len = 0;
+    if (temp == 0) {
+        buf[0] = '0';
+        len = 1;
+    } else {
+        while (temp > 0 && len < 15) {
+            buf[len++] = '0' + (temp % 10);
+            temp /= 10;
+        }
+        for (int i = 0; i < len / 2; i++) {
+            char tmp = buf[i];
+            buf[i] = buf[len - 1 - i];
+            buf[len - 1 - i] = tmp;
+        }
+    }
+    for (int i = 0; i < len && i < 3; i++) {
+        VGA_BUFFER[pos + 37 + i] = ((uint16_t)text_color << 8) | buf[i];
+    }
 }
 
 static void snake_reset_colors(void) {
@@ -193,8 +246,8 @@ static bool snake_set_custom_color(const char *target, const char *value) {
 }
 
 static int snake_play(void) {
-    uint8_t head_x = BOARD_WIDTH / 2;
-    uint8_t head_y = BOARD_HEIGHT / 2;
+    uint8_t head_x = TERM_WIDTH / 2;
+    uint8_t head_y = TERM_HEIGHT / 2;
     snake_length = 4;
 
     for (uint8_t i = 0; i < snake_length; i++) {
@@ -205,19 +258,27 @@ static int snake_play(void) {
     int8_t dx = 1;
     int8_t dy = 0;
     int score = 0;
-    snake_place_food();
+    food_count = 0;
+    
+    /* Spawn initial foods */
+    for (uint8_t i = 0; i < 3; i++) {
+        snake_place_food();
+    }
+    
     snake_clear_screen();
-    snake_draw_board_background();
     snake_draw_border();
     snake_draw_snake();
-    snake_put_cell(food_x, food_y, '*', food_color);
-    snake_draw_info(score);
+    snake_draw_foods();
+    snake_draw_status(score);
+
+    uint32_t frame_counter = 0;
 
     while (true) {
         char c = keyboard_pollchar();
         if (c == 'q' || c == 'Q')
             break;
 
+        /* Change direction */
         if ((c == 'w' || c == 'W') && dy != 1) {
             dx = 0;
             dy = -1;
@@ -232,14 +293,33 @@ static int snake_play(void) {
             dy = 0;
         }
 
+        /* Only move every GAME_SPEED frames */
+        frame_counter++;
+        if (frame_counter < GAME_SPEED) {
+            continue;
+        }
+        frame_counter = 0;
+
         int next_x = snake_x[0] + dx;
         int next_y = snake_y[0] + dy;
 
-        if (next_x == 0 || next_x == BOARD_WIDTH - 1 || next_y == 0 || next_y == BOARD_HEIGHT - 1) {
+        /* Check border collision */
+        if (next_x <= 0 || next_x >= TERM_WIDTH - 1 || next_y <= 0 || next_y >= TERM_HEIGHT - 1) {
             break;
         }
 
-        bool ate_food = (next_x == food_x && next_y == food_y);
+        /* Check self collision */
+        bool ate_food = false;
+        uint8_t food_idx = 0;
+        
+        for (uint8_t i = 0; i < food_count; i++) {
+            if (next_x == food_x[i] && next_y == food_y[i]) {
+                ate_food = true;
+                food_idx = i;
+                break;
+            }
+        }
+        
         uint8_t collision_len = snake_length - (ate_food ? 0 : 1);
         for (uint8_t i = 0; i < collision_len; i++) {
             if (snake_x[i] == (uint8_t)next_x && snake_y[i] == (uint8_t)next_y) {
@@ -249,6 +329,8 @@ static int snake_play(void) {
 
         uint8_t tail_x = snake_x[snake_length - 1];
         uint8_t tail_y = snake_y[snake_length - 1];
+        
+        /* Move snake */
         for (uint8_t i = snake_length; i > 0; i--) {
             snake_x[i] = snake_x[i - 1];
             snake_y[i] = snake_y[i - 1];
@@ -259,24 +341,47 @@ static int snake_play(void) {
         if (!ate_food) {
             snake_put_cell(tail_x, tail_y, ' ', board_color);
         } else {
+            /* Remove eaten food */
+            if (food_idx < food_count - 1) {
+                food_x[food_idx] = food_x[food_count - 1];
+                food_y[food_idx] = food_y[food_count - 1];
+            }
+            food_count--;
+            
+            /* Grow snake */
             if (snake_length + 1 < BOARD_MAX_SNAKE)
                 snake_length++;
+            
             score += 10;
-            snake_place_food();
+            
+            /* Spawn new food */
+            if (food_count < MAX_FOODS) {
+                snake_place_food();
+            }
         }
 
+        /* Redraw snake */
         if (snake_length > 1) {
             snake_put_cell(snake_x[1], snake_y[1], 'o', snake_color);
         }
-        snake_put_cell(snake_x[0], snake_y[0], 'O', snake_color);
-        snake_put_cell(food_x, food_y, '*', food_color);
-        snake_draw_info(score);
-
-        snake_delay();
+        snake_put_cell(snake_x[0], snake_y[0], '@', snake_color);
+        
+        /* Redraw foods */
+        snake_draw_foods();
+        snake_draw_status(score);
     }
 
 end_game:
-    snake_show_game_over(score);
+    snake_clear_screen();
+    terminal_row = TERM_HEIGHT / 2 - 1;
+    terminal_col = 0;
+    move_cursor(0, TERM_HEIGHT / 2 - 1);
+    printf("=== GAME OVER ===\n");
+    printf("Final Score: %d\n", score);
+    printf("Snake Length: %d\n", snake_length);
+    printf("\nPress any key to return to shell.\n");
+    keyboard_getchar();
+    snake_clear_screen();
     return 0;
 }
 
@@ -313,10 +418,10 @@ int cmd_snake(int argc, char** argv) {
             snake_print_usage();
             return 1;
         }
-        terminal_write("Snake color updated.\n");
+        terminal_write("Snake game color updated.\n");
         return 0;
     }
 
     snake_print_usage();
-    return 1;
+    return 0;
 }

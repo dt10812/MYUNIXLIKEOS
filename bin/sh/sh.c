@@ -65,6 +65,22 @@ void sh(void) {
         if (strcmp(argv[0], "snake") == 0) { cmd_snake(argc, argv); continue; }
         if (strcmp(argv[0], "vi")    == 0) { cmd_vi(argc, argv);    continue; }
         if (strcmp(argv[0], "nano")  == 0) { cmd_nano(argc, argv);  continue; }
+        if (strcmp(argv[0], "pwd")   == 0) { cmd_pwd(argc, argv);   continue; }
+        if (strcmp(argv[0], "date")  == 0) { cmd_date(argc, argv);  continue; }
+        if (strcmp(argv[0], "rm")    == 0) { cmd_rm(argc, argv);    continue; }
+        if (strcmp(argv[0], "cp")    == 0) { cmd_cp(argc, argv);    continue; }
+        if (strcmp(argv[0], "mv")    == 0) { cmd_mv(argc, argv);    continue; }
+        if (strcmp(argv[0], "shutdown") == 0) { cmd_shutdown(argc, argv); continue; }
+        if (strcmp(argv[0], "reboot")   == 0) { cmd_reboot(argc, argv);   continue; }
+        if (strcmp(argv[0], "calc")    == 0) { cmd_calc(argc, argv);    continue; }
+        if (strcmp(argv[0], "man")     == 0) { cmd_man(argc, argv);     continue; }
+        if (strcmp(argv[0], "wc")      == 0) { cmd_wc(argc, argv);      continue; }
+        if (strcmp(argv[0], "head")    == 0) { cmd_head(argc, argv);    continue; }
+        if (strcmp(argv[0], "tail")    == 0) { cmd_tail(argc, argv);    continue; }
+        if (strcmp(argv[0], "sort")    == 0) { cmd_sort(argc, argv);    continue; }
+        if (strcmp(argv[0], "uniq")    == 0) { cmd_uniq(argc, argv);    continue; }
+        if (strcmp(argv[0], "whoami")  == 0) { cmd_whoami(argc, argv);  continue; }
+        if (strcmp(argv[0], "password") == 0) { cmd_password(argc, argv); continue; }
 
         if (strcmp(argv[0], "exec")  == 0) {
             if (argc < 2) { printf("exec: missing program name\n"); continue; }
