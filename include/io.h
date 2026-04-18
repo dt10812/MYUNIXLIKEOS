@@ -41,4 +41,8 @@ void terminal_backspace(void);
 
 void terminal_write(const char* s);
 
+void serial_write(const char* s);
+
+void serial_init(void);
+
 #endif

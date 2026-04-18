@@ -1,13 +1,13 @@
 [BITS 32]
 
-; Grub
+; Multiboot2 header
 section .multiboot2_header
 align 8
 mb2_start:
     dd 0xE85250D6                                ; magic
     dd 0                                         ; arch: 32-bit protected mode
     dd mb2_end - mb2_start                       ; header length
-    dd -(0xE85250D6 + 0 + (mb2_end - mb2_start)) ; checksum
+    dd 0x17ADAF12                                ; checksum
     ; end tag
     dw 0
     dw 0
@@ -28,15 +28,22 @@ global _start
 extern kernel_main
 
 _start:
+    ; Direct VGA output to confirm _start is executing
+    mov word [0xB8000], 0x0F41  ; White 'A' at first VGA position
+    
     mov esp, stack_top
     mov ebp, esp
 
     ; Multiboot2: eax = magic, ebx = info ptr
     push ebx            ; arg1: multiboot info ptr
     push eax            ; arg0: magic
+    
+    mov word [0xB8002], 0x0F42  ; White 'B' - about to call kernel_main
+    
     call kernel_main
 
 .halt:
+    mov word [0xB8004], 0x0FCB  ; White 'Ë' (crashed/halted marker)
     cli
     hlt
     jmp .halt

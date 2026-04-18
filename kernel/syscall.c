@@ -26,6 +26,8 @@ struct trapframe {
 
 extern void terminal_write(const char*);
 
+extern void serial_write(const char*);
+
 /* Note: regs->eax is the return value on exit */
 void syscall_handler(struct trapframe *regs) {
     switch (regs->eax) {
@@ -37,8 +39,10 @@ void syscall_handler(struct trapframe *regs) {
 
             if ((fd == 1 || fd == 2) && buf && count) {
                 /* Write exactly count bytes — buf may not be NUL-terminated */
-                for (uint32_t i = 0; i < count; i++)
+                for (uint32_t i = 0; i < count; i++) {
                     terminal_write((char[]){buf[i], '\0'});
+                    serial_write((char[]){buf[i], '\0'});
+                }
                 regs->eax = count;
             } else {
                 regs->eax = (uint32_t)-1;

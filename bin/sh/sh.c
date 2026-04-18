@@ -59,6 +59,9 @@ void sh(void) {
         if (strcmp(argv[0], "echo")  == 0) { cmd_echo(argc, argv);  continue; }
         if (strcmp(argv[0], "color") == 0) { cmd_color(argc, argv); continue; }
         if (strcmp(argv[0], "memory") == 0) { cmd_memory(argc, argv); continue; }
+        if (strcmp(argv[0], "free") == 0) { cmd_free(argc, argv); continue; }
+        if (strcmp(argv[0], "top") == 0) { cmd_top(argc, argv); continue; }
+        if (strcmp(argv[0], "vmstat") == 0) { cmd_vmstat(argc, argv); continue; }
         if (strcmp(argv[0], "snake") == 0) { cmd_snake(argc, argv); continue; }
         if (strcmp(argv[0], "vi")    == 0) { cmd_vi(argc, argv);    continue; }
         if (strcmp(argv[0], "nano")  == 0) { cmd_nano(argc, argv);  continue; }

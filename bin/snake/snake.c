@@ -5,6 +5,8 @@
 #include "stdbool.h"
 #include "io.h"
 
+#define VGA_BUFFER ((volatile uint16_t*)0xB8000)
+
 #define BOARD_ORIGIN_X 1
 #define BOARD_ORIGIN_Y 1
 #define BOARD_WIDTH  30
@@ -97,24 +99,14 @@ static void snake_place_food(void) {
 }
 
 static void snake_put_cell(uint8_t x, uint8_t y, char ch, uint8_t attr) {
-    uint8_t previous = terminal_get_color();
-    snake_set_color(attr);
-    move_cursor(BOARD_ORIGIN_X + x, BOARD_ORIGIN_Y + y);
-    terminal_putc(ch);
-    snake_set_color(previous);
+    uint16_t pos = (BOARD_ORIGIN_Y + y) * TERM_WIDTH + (BOARD_ORIGIN_X + x);
+    VGA_BUFFER[pos] = ((uint16_t)attr << 8) | (uint8_t)ch;
 }
 
 static void snake_clear_screen(void) {
-    uint8_t previous = terminal_get_color();
-    snake_set_color(0x07);
-    terminal_row = 0;
-    terminal_col = 0;
-    for (uint8_t row = 0; row < TERM_HEIGHT; row++) {
-        for (uint8_t col = 0; col < TERM_WIDTH; col++) {
-            terminal_putc(' ');
-        }
+    for (uint16_t i = 0; i < TERM_WIDTH * TERM_HEIGHT; i++) {
+        VGA_BUFFER[i] = ((uint16_t)0x07 << 8) | ' ';
     }
-    snake_set_color(previous);
     terminal_row = 0;
     terminal_col = 0;
     move_cursor(0, 0);

@@ -62,3 +62,20 @@ uint8_t terminal_get_color(void) {
 void terminal_write(const char* s) {
     for(; *s; terminal_putc(*s++));
 }
+
+void serial_write(const char* s) {
+    for(; *s; s++) {
+        while ((inb(0x3FD) & 0x20) == 0); // Wait for transmit buffer empty
+        outb(0x3F8, *s);
+    }
+}
+
+void serial_init(void) {
+    outb(0x3F9, 0x00); // Disable interrupts
+    outb(0x3FB, 0x80); // Enable DLAB
+    outb(0x3F8, 0x03); // Set divisor to 3 (38400 baud)
+    outb(0x3F9, 0x00);
+    outb(0x3FB, 0x03); // 8 bits, no parity, one stop bit
+    outb(0x3FC, 0x00); // No flow control
+    outb(0x3F9, 0x01); // Enable interrupts for received data
+}

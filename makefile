@@ -73,6 +73,9 @@ SRC = \
 	$(BIN_DIR)/echo/echo.c \
 	$(BIN_DIR)/color/color.c \
 	$(BIN_DIR)/memory/memory.c \
+	$(BIN_DIR)/free/free.c \
+	$(BIN_DIR)/top/top.c \
+	$(BIN_DIR)/vmstat/vmstat.c \
 	$(BIN_DIR)/snake/snake.c \
 	$(BIN_DIR)/vi/vi.c \
 	$(BIN_DIR)/nano/nano.c \
@@ -92,6 +95,7 @@ STDIO_SRC = \
 STRING_SRC = \
 	$(STRING_DIR)/memset.c \
 	$(STRING_DIR)/memcpy.c \
+	$(STRING_DIR)/memmove.c \
 	$(STRING_DIR)/strcmp.c \
 	$(STRING_DIR)/strlen.c \
 	$(STRING_DIR)/strcpy.c \
@@ -116,6 +120,7 @@ USER_LIBC_SRC = \
 	$(USER_LIBC_DIR)/string/strcpy.c \
 	$(USER_LIBC_DIR)/string/strcmp.c \
 	$(USER_LIBC_DIR)/string/memcpy.c \
+	$(USER_LIBC_DIR)/string/memmove.c \
 	$(USER_LIBC_DIR)/string/memset.c \
 	$(USER_LIBC_DIR)/unistd/write.c \
 	$(USER_LIBC_DIR)/stdio/streams.c \
@@ -208,7 +213,7 @@ $(OBJ_DIR)/entry.o: entry.asm | $(OBJ_DIR)
 	$(AS) $(ASFLAGS) $< -o $@
 
 # Kernel ELF
-$(ELF): $(OBJ_DIR)/entry.o $(OBJ_DIR)/user_progs_bin.o $(OBJ_DIR)/user_progs.o $(KERN_OBJS) $(LIBC) | $(OBJ_DIR)
+$(ELF): linker.ld $(OBJ_DIR)/entry.o $(OBJ_DIR)/user_progs_bin.o $(OBJ_DIR)/user_progs.o $(KERN_OBJS) $(LIBC) | $(OBJ_DIR)
 	$(LD) $(LDFLAGS) -o $@ $(OBJ_DIR)/entry.o $(OBJ_DIR)/user_progs_bin.o $(OBJ_DIR)/user_progs.o $(KERN_OBJS) $(LIBC)
 
 $(BIN): $(ELF)
