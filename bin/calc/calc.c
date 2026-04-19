@@ -76,7 +76,13 @@ static int parse_expr(void) {
 
 static int evaluate(const char *expression) {
     expr_ptr = expression;
-    return parse_expr();
+    int result = parse_expr();
+    skip_whitespace();
+    if (*expr_ptr != '\0') {
+        /* Invalid expression - didn't consume all input */
+        return 0;
+    }
+    return result;
 }
 
 int cmd_calc(int argc, char** argv) {

@@ -38,7 +38,8 @@ uintptr_t get_physical_address(uintptr_t virtual);
 void pmm_init(void* mmap_tag);
 void* pmm_alloc_page();             /* Find one free 4KB page */
 void  pmm_free_page(void* ptr);     /* Mark a page as free */
-void* pmm_alloc_blocks(size_t count);
+void* pmm_alloc_blocks(size_t count); /* Allocate contiguous pages */
+void  pmm_free_blocks(void* ptr, size_t count); /* Free contiguous pages */
 void* pmm_alloc_z(size_t size);     /* Allocate zeroed pages */
 
 size_t pmm_total_pages(void);

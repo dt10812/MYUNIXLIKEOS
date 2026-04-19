@@ -72,6 +72,8 @@
 #define SYS_mmap           0x003C   /* for: void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) */
 #define SYS_munmap         0x003D   /* for: int munmap(void *addr, size_t length) */
 #define SYS_mprotect       0x003E   /* for: int mprotect(void *addr, size_t len, int prot) */
+/* system info */
+#define SYS_sysinfo        0x003F   /* for: sysinfo(struct sysinfo *info) - returns: 0 on success */
 
 /*
  * Usage is sort of unintuitive:

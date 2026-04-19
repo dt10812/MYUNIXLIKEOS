@@ -9,6 +9,17 @@
 #include <stddef.h>
 #include "vfs.h"
 #include "unistd.h"
+#include "io.h"
+
+#define MAX_ALIASES 32
+#define MAX_ALIAS_NAME 32
+#define MAX_ALIAS_VALUE 128
+
+static struct {
+    char name[MAX_ALIAS_NAME];
+    char value[MAX_ALIAS_VALUE];
+} aliases[MAX_ALIASES];
+static int alias_count = 0;
 
 void read_line(char *buf, size_t size);
 extern void cmd_clear(void);
@@ -31,6 +42,131 @@ static void split_args(char *input, char **argv, int *argc) {
     }
 }
 
+static int find_alias(const char *name) {
+    for (int i = 0; i < alias_count; i++) {
+        if (strcmp(aliases[i].name, name) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void add_alias(const char *name, const char *value) {
+    if (alias_count >= MAX_ALIASES) {
+        printf("alias: too many aliases\n");
+        return;
+    }
+
+    int existing = find_alias(name);
+    if (existing >= 0) {
+        // Update existing alias
+        strcpy(aliases[existing].value, value);
+    } else {
+        // Add new alias
+        strcpy(aliases[alias_count].name, name);
+        strcpy(aliases[alias_count].value, value);
+        alias_count++;
+    }
+}
+
+static void remove_alias(const char *name) {
+    int idx = find_alias(name);
+    if (idx >= 0) {
+        // Shift remaining aliases
+        for (int i = idx; i < alias_count - 1; i++) {
+            strcpy(aliases[i].name, aliases[i + 1].name);
+            strcpy(aliases[i].value, aliases[i + 1].value);
+        }
+        alias_count--;
+    }
+}
+
+static void list_aliases(void) {
+    if (alias_count == 0) {
+        printf("No aliases defined\n");
+        return;
+    }
+
+    for (int i = 0; i < alias_count; i++) {
+        printf("alias %s='%s'\n", aliases[i].name, aliases[i].value);
+    }
+}
+
+int cmd_alias(int argc, char *argv[]) {
+    if (argc == 1) {
+        // List all aliases
+        list_aliases();
+        return 0;
+    }
+
+    if (argc == 2) {
+        // Show specific alias
+        int idx = find_alias(argv[1]);
+        if (idx >= 0) {
+            printf("alias %s='%s'\n", aliases[idx].name, aliases[idx].value);
+        } else {
+            printf("alias: %s: not found\n", argv[1]);
+        }
+        return 0;
+    }
+
+    if (argc >= 3) {
+        if (strcmp(argv[1], "-d") == 0 || strcmp(argv[1], "--delete") == 0) {
+            // Delete alias
+            for (int i = 2; i < argc; i++) {
+                remove_alias(argv[i]);
+            }
+            return 0;
+        } else {
+            // Set alias: alias name=value or alias name value
+            char *name = argv[1];
+            char *value = argv[2];
+
+            // Handle name=value format
+            char *equals = strchr(name, '=');
+            if (equals) {
+                *equals = '\0';
+                value = equals + 1;
+            }
+
+            add_alias(name, value);
+            return 0;
+        }
+    }
+
+    printf("Usage: alias [name[=value] ...] or alias -d name ...\n");
+    return 1;
+}
+
+static void expand_alias(char *input, size_t size) {
+    char temp_buf[ARG_MAX];
+    char *argv[16];
+    int argc;
+
+    // Make a copy of the input for parsing
+    strcpy(temp_buf, input);
+    split_args(temp_buf, argv, &argc);
+
+    if (argc == 0) return;
+
+    int alias_idx = find_alias(argv[0]);
+    if (alias_idx >= 0) {
+        // Replace the command with the alias value
+        char expanded[ARG_MAX];
+        strcpy(expanded, aliases[alias_idx].value);
+
+        // Append remaining arguments if any
+        for (int i = 1; i < argc; i++) {
+            strcat(expanded, " ");
+            strcat(expanded, argv[i]);
+        }
+
+        if (strlen(expanded) < size) {
+            strcpy(input, expanded);
+        }
+    }
+}
+
 void sh(void) {
     char buf[ARG_MAX];
     char *argv[16];
@@ -44,6 +180,10 @@ void sh(void) {
         argc = 0;
 
         read_line(buf, ARG_MAX);
+
+        // Expand aliases
+        expand_alias(buf, ARG_MAX);
+
         split_args(buf, argv, &argc);
 
         if (argc == 0) continue;
@@ -73,6 +213,7 @@ void sh(void) {
         if (strcmp(argv[0], "shutdown") == 0) { cmd_shutdown(argc, argv); continue; }
         if (strcmp(argv[0], "reboot")   == 0) { cmd_reboot(argc, argv);   continue; }
         if (strcmp(argv[0], "calc")    == 0) { cmd_calc(argc, argv);    continue; }
+        if (strcmp(argv[0], "gcc")     == 0) { cmd_gcc(argc, argv);     continue; }
         if (strcmp(argv[0], "man")     == 0) { cmd_man(argc, argv);     continue; }
         if (strcmp(argv[0], "wc")      == 0) { cmd_wc(argc, argv);      continue; }
         if (strcmp(argv[0], "head")    == 0) { cmd_head(argc, argv);    continue; }
@@ -81,6 +222,11 @@ void sh(void) {
         if (strcmp(argv[0], "uniq")    == 0) { cmd_uniq(argc, argv);    continue; }
         if (strcmp(argv[0], "whoami")  == 0) { cmd_whoami(argc, argv);  continue; }
         if (strcmp(argv[0], "password") == 0) { cmd_password(argc, argv); continue; }
+        if (strcmp(argv[0], "sysinfo") == 0) { cmd_sysinfo(argc, argv); continue; }
+        if (strcmp(argv[0], "alias")   == 0) { cmd_alias(argc, argv);   continue; }
+        if (strcmp(argv[0], "uptime")  == 0) { cmd_uptime(argc, argv);  continue; }
+        if (strcmp(argv[0], "dmesg")   == 0) { cmd_dmesg(argc, argv);   continue; }
+        if (strcmp(argv[0], "which")   == 0) { cmd_which(argc, argv);   continue; }
 
         if (strcmp(argv[0], "exec")  == 0) {
             if (argc < 2) { printf("exec: missing program name\n"); continue; }

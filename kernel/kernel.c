@@ -16,8 +16,35 @@
 #include "gdt.h"
 #include "sys/time.h"
 #include "multiboot.h"
+#include "keyboard.h"
 
 char fs_type_name[16] = "Ext2";
+
+/* Kernel log buffer for dmesg */
+#define KERNEL_LOG_SIZE 4096
+static char kernel_log_buffer[KERNEL_LOG_SIZE];
+static size_t kernel_log_pos = 0;
+
+void kernel_log(const char *msg) {
+    size_t len = strlen(msg);
+    if (kernel_log_pos + len >= KERNEL_LOG_SIZE) {
+        // Wrap around if buffer is full
+        kernel_log_pos = 0;
+    }
+    
+    for (size_t i = 0; i < len && kernel_log_pos < KERNEL_LOG_SIZE; i++) {
+        kernel_log_buffer[kernel_log_pos++] = msg[i];
+    }
+    
+    // Null terminate
+    if (kernel_log_pos < KERNEL_LOG_SIZE) {
+        kernel_log_buffer[kernel_log_pos] = '\0';
+    }
+}
+
+const char* get_kernel_log(void) {
+    return kernel_log_buffer;
+}
 
 /* Physical Memory Manager - Dynamic bitmap based on real memory map */
 static uint8_t* pmm_bitmap = NULL;
@@ -194,10 +221,53 @@ void pmm_free_page(void* ptr) {
 }
 
 void* pmm_alloc_blocks(size_t count) {
-    if (count == 0) return NULL;
+    if (count == 0 || count > pmm_available_pages) return NULL;
     
-    /* For now, just allocate single pages */
-    return pmm_alloc_page();
+    /* Find contiguous free pages */
+    size_t start_page = 0;
+    size_t consecutive_free = 0;
+    
+    for (size_t i = 0; i < pmm_total_memory_pages; i++) {
+        if (!bitmap_test(i)) {
+            if (consecutive_free == 0) {
+                start_page = i;
+            }
+            consecutive_free++;
+            if (consecutive_free >= count) {
+                /* Found enough consecutive pages, mark them as used */
+                for (size_t j = 0; j < count; j++) {
+                    bitmap_set(start_page + j);
+                }
+                pmm_available_pages -= count;
+                return (void*)(pmm_memory_start + start_page * PAGE_SIZE);
+            }
+        } else {
+            consecutive_free = 0;
+        }
+    }
+    
+    return NULL; /* No contiguous block found */
+}
+
+void pmm_free_blocks(void* ptr, size_t count) {
+    if (!ptr || count == 0) return;
+    
+    uintptr_t addr = (uintptr_t)ptr;
+    if (addr < pmm_memory_start || addr >= pmm_memory_start + pmm_total_memory_pages * PAGE_SIZE) {
+        return;
+    }
+    
+    size_t start_page = (addr - pmm_memory_start) / PAGE_SIZE;
+    if (start_page + count > pmm_total_memory_pages) {
+        count = pmm_total_memory_pages - start_page;
+    }
+    
+    for (size_t i = 0; i < count; i++) {
+        if (bitmap_test(start_page + i)) {
+            bitmap_clear(start_page + i);
+            pmm_available_pages++;
+        }
+    }
 }
 
 void* pmm_alloc_z(size_t size) {
@@ -386,13 +456,17 @@ void kernel_main(uint32_t magic, struct multiboot_info* mbi) {
     /* Write "K" to VGA and serial to confirm we're running */
     vga[vga_idx++] = 0x0F00 | 'K';
     serial_write("K");
+    kernel_log("[    0.000000] MYUNIXLIKEOS kernel starting...\n");
     
     /* Validate multiboot */
     if (magic != MULTIBOOT2_INFO_MAGIC || !mbi) {
         vga[vga_idx++] = 0x0C00 | 'B';  /* Red 'B' for bad multiboot */
         serial_write("B");
+        kernel_log("[    0.000001] ERROR: Invalid multiboot magic or info\n");
         __asm__ volatile("cli; hlt");
     }
+    
+    kernel_log("[    0.000002] Multiboot validation passed\n");
     
     /* Parse memory map */
     vga[vga_idx++] = 0x0200 | '1';  /* Green '1' */
@@ -411,42 +485,63 @@ void kernel_main(uint32_t magic, struct multiboot_info* mbi) {
     /* Initialize components incrementally */
     vga[vga_idx++] = 0x0200 | 'P';  /* Green 'P' - about to init PMM */
     serial_write("P");
+    kernel_log("[    0.000003] Initializing Physical Memory Manager...\n");
     pmm_init(mmap_tag);
     vga[vga_idx++] = 0x0200 | 'p';  /* Green 'p' - PMM done */
     serial_write("p");
+    kernel_log("[    0.000004] PMM initialized\n");
     
     vga[vga_idx++] = 0x0200 | 'F';  /* Green 'F' - about to init FS */
     serial_write("F");
+    kernel_log("[    0.000005] Initializing Virtual File System...\n");
     fs_init();
     vga[vga_idx++] = 0x0200 | 'f';  /* Green 'f' - FS done */
     serial_write("f");
+    kernel_log("[    0.000006] VFS initialized\n");
     
     vga[vga_idx++] = 0x0200 | 'G';  /* Green 'G' - about to init GDT */
     serial_write("G");
+    kernel_log("[    0.000007] Initializing GDT...\n");
     gdt_init();  /* <-- potential crash point */
     vga[vga_idx++] = 0x0200 | 'g';  /* Green 'g' - GDT done */
     serial_write("g");
+    kernel_log("[    0.000008] GDT initialized\n");
     
     vga[vga_idx++] = 0x0200 | 'I';  /* Green 'I' - about to init IDT */
     serial_write("I");
+    kernel_log("[    0.000009] Initializing IDT...\n");
     idt_init();  /* <-- potential crash point */
     vga[vga_idx++] = 0x0200 | 'i';  /* Green 'i' - IDT done */
     serial_write("i");
+    kernel_log("[    0.000010] IDT initialized\n");
+    
+    vga[vga_idx++] = 0x0200 | 'K';  /* Green 'K' - about to init Keyboard */
+    serial_write("K");
+    kernel_log("[    0.000011] Initializing keyboard driver...\n");
+    keyboard_init();
+    vga[vga_idx++] = 0x0200 | 'k';  /* Green 'k' - Keyboard done */
+    serial_write("k");
+    kernel_log("[    0.000012] Keyboard driver initialized\n");
     
     vga[vga_idx++] = 0x0200 | 'T';  /* Green 'T' - about to set TSS */
     serial_write("T");
+    kernel_log("[    0.000013] Setting up TSS...\n");
     tss_set_kernel_stack((uint32_t)&stack_top);
     vga[vga_idx++] = 0x0200 | 't';  /* Green 't' - TSS done */
     serial_write("t");
+    kernel_log("[    0.000014] TSS configured\n");
     
     vga[vga_idx++] = 0x0200 | 'U';  /* Green 'U' - about to install progs */
     serial_write("U");
+    kernel_log("[    0.000015] Installing user programs...\n");
     install_user_progs();
     vga[vga_idx++] = 0x0200 | 'u';  /* Green 'u' - progs done */
     serial_write("u");
+    kernel_log("[    0.000016] User programs installed\n");
     
     vga[vga_idx++] = 0x0E00 | ':';  /* Yellow ':' - about to printf */
     serial_write(":");
+    kernel_log("[    0.000017] Kernel initialization complete\n");
     
     /* Try printf */
     printf("*nix IA-32 Kernel booted\n");
@@ -466,6 +561,7 @@ void kernel_main(uint32_t magic, struct multiboot_info* mbi) {
     printf("%s %s %i:%i %i UTC\n", days[bt.tm_wday],
         months[bt.tm_mon], bt.tm_hour, bt.tm_min, bt.tm_year);
     
+    kernel_log("[    0.000018] Starting shell...\n");
     /* Start the shell */
     sh();
 }

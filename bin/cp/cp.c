@@ -2,6 +2,7 @@
 #include "vfs.h"
 #include "stdio.h"
 #include "string.h"
+#include "pmm.h"
 
 extern void terminal_write(const char*);
 extern vnode_t* current_dir;
@@ -55,8 +56,16 @@ int cmd_cp(int argc, char** argv) {
     
     /* Copy file content */
     if (src->content) {
-        dst->content = (char*)src->content;
-        dst->size = src->size;
+        /* Allocate new memory for the content copy */
+        dst->content = (char*)kmalloc(src->size + 1);
+        if (dst->content) {
+            memcpy(dst->content, src->content, src->size);
+            dst->content[src->size] = '\0';  /* Null terminate */
+            dst->size = src->size;
+        } else {
+            printf("cp: failed to allocate memory for copy\n");
+            return -1;
+        }
     }
     
     printf("'%s' -> '%s'\n", src_name, dst_name);

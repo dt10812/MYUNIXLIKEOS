@@ -304,7 +304,7 @@ static int snake_play(void) {
         int next_y = snake_y[0] + dy;
 
         /* Check border collision */
-        if (next_x <= 0 || next_x >= TERM_WIDTH - 1 || next_y <= 0 || next_y >= TERM_HEIGHT - 1) {
+        if (next_x < 1 || next_x > TERM_WIDTH - 2 || next_y < 1 || next_y > TERM_HEIGHT - 2) {
             break;
         }
 

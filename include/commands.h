@@ -46,6 +46,12 @@ int cmd_sort(int argc, char** argv);
 int cmd_uniq(int argc, char** argv);
 int cmd_whoami(int argc, char** argv);
 int cmd_password(int argc, char** argv);
+int cmd_sysinfo(int argc, char** argv);
+int cmd_gcc(int argc, char** argv);
+int cmd_alias(int argc, char** argv);
+int cmd_uptime(int argc, char** argv);
+int cmd_dmesg(int argc, char** argv);
+int cmd_which(int argc, char** argv);
 
 void sh(void);
 

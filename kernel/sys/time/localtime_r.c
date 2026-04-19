@@ -9,15 +9,30 @@ struct tm *localtime_r(const time_t *timep, struct tm *result){
     };
     #define IS_LEAP(y) (((y) % 4 == 0 && (y) % 100 != 0) || ((y) % 400 == 0))
 
+    time_t t = *timep;
+    if (t < 0) {
+        // For negative time (pre-1970), approximate as 1919-04-19 02:02:02
+        result->tm_year = 19;
+        result->tm_mon = 3;
+        result->tm_mday = 19;
+        result->tm_hour = 2;
+        result->tm_min = 2;
+        result->tm_sec = 2;
+        result->tm_wday = 0;
+        result->tm_yday = 0;
+        result->tm_isdst = -1;
+        return result;
+    }
+
     uint32_t total_days = 0;
-    time_t sec_of_year = *timep;
+    time_t sec_of_year = t;
     int y = 1970;
     for (; sec_of_year >= (IS_LEAP(y) ? 31622400 : 31536000); y++) {
         total_days += IS_LEAP(y) ? 366 : 365;
         sec_of_year -= IS_LEAP(y) ? 31622400 : 31536000;
     }
     bool leap = IS_LEAP(y);
-    result->tm_year = y;
+    result->tm_year = y - 1900;
 
     uint32_t soy = (uint32_t)sec_of_year;
     uint32_t yday = soy / 86400;

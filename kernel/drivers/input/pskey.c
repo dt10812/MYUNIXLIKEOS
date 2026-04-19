@@ -4,6 +4,9 @@
 #include "string.h"
 #include "stddef.h"
 #include "stdbool.h"
+#include "keyboard.h"
+
+static keyboard_layout_t current_layout = KEYBOARD_LAYOUT_QWERTY;
 
 static bool shift_down = false;
 static bool ctrl_down = false;
@@ -30,9 +33,47 @@ static const char qwerty_table_shift[0x80] = {
     [0x53] = 0x7F
 };
 
+static const char azerty_table[0x80] = {
+    0, 0x1B, '1', '2', '3', '4', '5', '6', '7', '8',
+    '9', '0', ')', '=', '\b', '\t', 'a', 'z', 'e', 'r',
+    't', 'y', 'u', 'i', 'o', 'p', '^', '$', '\n', 0,
+    'q', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm',
+    '%', '`', 0, '*', 'w', 'x', 'c', 'v', 'b', 'n',
+    ',', ';', ':', '!', 0, '*', 0, ' ', 0,
+    [0x53] = 0x7F
+};
+
+static const char azerty_table_shift[0x80] = {
+    0, 0x1B, '&', 0xE9, '"', '\'', '(', '-', 0xE8, '_',
+    0xE7, 0xE0, ')', '=', '\b', '\t', 'A', 'Z', 'E', 'R',
+    'T', 'Y', 'U', 'I', 'O', 'P', 0xA8, 0xA3, '\n', 0,
+    'Q', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M',
+    0xB5, '~', 0, '*', 'W', 'X', 'C', 'V', 'B', 'N',
+    '?', '.', '/', '+', 0, '*', 0, ' ', 0,
+    [0x53] = 0x7F
+};
+
 /* to later support other keyboard layouts */
-static const char *scancode_table = qwerty_table;
-static const char *scancode_table_shift = qwerty_table_shift;
+static const char *scancode_table;
+static const char *scancode_table_shift;
+
+void keyboard_set_layout(keyboard_layout_t layout) {
+    current_layout = layout;
+    switch (layout) {
+        case KEYBOARD_LAYOUT_QWERTY:
+            scancode_table = qwerty_table;
+            scancode_table_shift = qwerty_table_shift;
+            break;
+        case KEYBOARD_LAYOUT_AZERTY:
+            scancode_table = azerty_table;
+            scancode_table_shift = azerty_table_shift;
+            break;
+    }
+}
+
+void keyboard_init(void) {
+    keyboard_set_layout(KEYBOARD_LAYOUT_QWERTY); /* Default to QWERTY */
+}
 
 static bool is_lower_letter(char c) {
     return c >= 'a' && c <= 'z';

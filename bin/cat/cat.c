@@ -18,7 +18,7 @@ int cmd_cat(int argc, char** argv) {
 
     char **pptr = argv; // path ptr
     for(++pptr; --argc; pptr++){
-        file = vfs_lookup(argv[1]);
+        file = vfs_lookup(*pptr);
         if (!file || !(file->flags & VFS_FILE)) {
             printf("cat: %s: No such file or directory\n", *pptr);
             return -1;

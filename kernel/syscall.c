@@ -3,11 +3,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "sys/syscall.h"
+#include "sys/sysinfo.h"
 #include "fcntl.h"
 #include "vfs.h"
 #include "nvram.h"
 #include "sys/time.h"
 #include "commands.h"
+#include "pmm.h"
+#include "rtc.h"
 
 /* syscall number: regs->eax
  * arg1: regs->ebx
@@ -68,44 +71,49 @@ void syscall_handler(struct trapframe *regs) {
         case SYS_clock_gettime:
             switch (regs->ebx) {
             case CLOCK_REALTIME: {
-                char nvbuf[128];
-                struct nvram_t *nvbufptr = (struct nvram_t *)nvbuf;
-                readNVRAM(nvbuf);
+                uint8_t sec, min, hour, day, month, century;
+                uint8_t rtc_year;
+                rtc_get_time(&sec, &min, &hour, &day, &month, &rtc_year, &century);
 
                 struct timespec *tp = (struct timespec *)regs->ecx;
+                int year = century * 100 + rtc_year;
 
-                int sec   = bcd(nvbufptr->rtc_sec);
-                int min   = bcd(nvbufptr->rtc_min);
-                int hour  = bcd(nvbufptr->rtc_hour);
-                int day   = bcd(nvbufptr->rtc_day);
-                int month = bcd(nvbufptr->rtc_month);
-                int year  = bcd(nvbufptr->century_BCD) * 100 + bcd(nvbufptr->rtc_year);
-
-                uint8_t days_per_month[12] = {
-                    31, 28, 31, 30, 31, 30,
-                    31, 31, 30, 31, 30, 31
-                };
-
-                #define IS_LEAP(y) (((y) % 4 == 0 && (y) % 100 != 0) || ((y) % 400 == 0))
+                /* Validate RTC data - if invalid, use default */
+                if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31 ||
+                    hour > 23 || min > 59 || sec > 59) {
+                    /* Use default date: 2024-04-18 12:00:00 */
+                    year = 2024;
+                    month = 4;
+                    day = 18;
+                    hour = 12;
+                    min = 0;
+                    sec = 0;
+                }
 
                 time_t total_days = 0;
-                for (int y = 1970; y < year; y++)
-                    total_days += IS_LEAP(y) ? 366 : 365;
+                int start_year = 1970;
+                #define IS_LEAP(y) (((y) % 4 == 0 && (y) % 100 != 0) || ((y) % 400 == 0))
+                if (year < start_year) {
+                    for (int y = year; y < start_year; y++) {
+                        total_days -= IS_LEAP(y) ? 366 : 365;
+                    }
+                } else {
+                    for (int y = start_year; y < year; y++) {
+                        total_days += IS_LEAP(y) ? 366 : 365;
+                    }
+                }
+
+                uint8_t days_per_month[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
                 for (int m = 0; m < month - 1; m++) {
                     total_days += days_per_month[m];
                     if (m == 1 && IS_LEAP(year))
-                        total_days += 1;
+                        total_days++;
                 }
 
                 total_days += day - 1;
-
-                tp->tv_sec  = total_days * 86400
-                            + hour * 3600
-                            + min  * 60
-                            + sec;
+                tp->tv_sec = total_days * 86400 + hour * 3600 + min * 60 + sec;
                 tp->tv_nsec = 0;
-
                 regs->eax = 0;
                 break;
             }
@@ -221,6 +229,26 @@ void syscall_handler(struct trapframe *regs) {
             /* mprotect - not implemented */
             regs->eax = 0;
             break;
+        case SYS_sysinfo: {
+            struct sysinfo *info = (struct sysinfo *)regs->ebx;
+            if (info) {
+                info->uptime = 0; /* TODO: implement uptime */
+                info->totalram = pmm_total_pages() * PAGE_SIZE;
+                info->freeram = pmm_free_pages() * PAGE_SIZE;
+                info->sharedram = 0; /* Not implemented */
+                info->bufferram = 0; /* Not implemented */
+                info->totalswap = 0; /* No swap */
+                info->freeswap = 0; /* No swap */
+                info->procs = 1; /* Single process system */
+                info->totalhigh = 0; /* No high memory distinction */
+                info->freehigh = 0; /* No high memory distinction */
+                info->mem_unit = 1; /* Memory unit is bytes */
+                regs->eax = 0;
+            } else {
+                regs->eax = (uint32_t)-1;
+            }
+            break;
+        }
         default:
             regs->eax = (uint32_t)-1;
             break;

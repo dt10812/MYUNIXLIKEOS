@@ -86,12 +86,9 @@ isr_noerr:
     push dword 0        ; dummy error code
     push dword 0xFF     ; dummy trapno
     pusha
-    mov eax, [esp+32]   ; trapno
-    mov ebx, [esp+36]   ; err
-    push ebx
-    push eax
+    push esp            ; pointer to trapframe
     call fault_handler
-    add esp, 8
+    add esp, 4
     popa
     add esp, 8
     iret
@@ -99,12 +96,9 @@ isr_noerr:
 isr_err:
     push dword 0xFF     ; dummy trapno (error code already on stack from CPU)
     pusha
-    mov eax, [esp+32]   ; trapno
-    mov ebx, [esp+36]   ; err
-    push ebx
-    push eax
+    push esp            ; pointer to trapframe
     call fault_handler
-    add esp, 8
+    add esp, 4
     popa
     add esp, 8
     iret

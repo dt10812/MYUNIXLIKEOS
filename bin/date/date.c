@@ -2,21 +2,13 @@
 #include "stdio.h"
 #include "sys/time.h"
 
-extern void terminal_write(const char*);
-
 int cmd_date(int argc, char** argv) {
-    (void)argc;
-    (void)argv;
-    
     time_t t;
     time(&t);
     struct tm bt;
     
     const char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-    const char *months[] = {
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    };
+    const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
     
     localtime_r(&t, &bt);
     
@@ -27,7 +19,7 @@ int cmd_date(int argc, char** argv) {
            bt.tm_hour,
            bt.tm_min,
            bt.tm_sec,
-           bt.tm_year + 1900);
+           bt.tm_year);
     
     return 0;
 }

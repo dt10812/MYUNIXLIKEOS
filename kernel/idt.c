@@ -11,15 +11,121 @@ extern void _syscall(void);
 extern void isr_noerr(void);
 extern void isr_err(void);
 
-void fault_handler(uint32_t trapno, uint32_t err) {
+struct trapframe {
+    uint32_t gs, fs, es, ds;
+    uint32_t edi, esi, ebp, esp_dummy, ebx, edx, ecx, eax; /* pusha */
+    uint32_t trapno, err_code;
+    /* auto-pushed by the cpu */
+    uint32_t eip, cs, eflags;
+} __attribute__((packed));
+
+void fault_handler(struct trapframe *regs) {
     static const char *names[] = {
         "#DE", "#DB", "NMI", "#BP", "#OF", "#BR", "#UD", "#NM",
         "#DF", "??",  "#TS", "#NP", "#SS", "#GP", "#PF", "??",
         "#MF", "#AC", "#MC", "#XF"
     };
-    const char *name = trapno < 20 ? names[trapno] : "??";
-    printf("\nFAULT %s (int=0x%x) err=0x%x\n", name, trapno, err);
-    printf("System halted.\n");
+    const char *name = regs->trapno < 20 ? names[regs->trapno] : "??";
+    
+    if (regs->trapno == 14) { /* Page Fault */
+        /* Clear screen and set blue background */
+        for (int i = 0; i < 80 * 25; i++) {
+            ((uint16_t*)0xB8000)[i] = 0x1F00; /* Blue background, black text */
+        }
+        
+        /* Display blue screen of death */
+        const char *bsod_title = "MYUNIXLIKEOS - KERNEL PANIC";
+        const char *bsod_msg = "A fatal error has occurred and the system has been halted.";
+        const char *pf_msg = "PAGE FAULT";
+        
+        int pos = 80 * 2 + 20; /* Row 2, column 20 */
+        for (int i = 0; bsod_title[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | bsod_title[i];
+        }
+        
+        pos = 80 * 4 + 10;
+        for (int i = 0; bsod_msg[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | bsod_msg[i];
+        }
+        
+        pos = 80 * 6 + 30;
+        for (int i = 0; pf_msg[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | pf_msg[i];
+        }
+        
+        /* Display register values */
+        char reg_buf[32];
+        pos = 80 * 8 + 10;
+        
+        sprintf(reg_buf, "EAX: 0x%08X", regs->eax);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        pos = 80 * 9 + 10;
+        sprintf(reg_buf, "EBX: 0x%08X", regs->ebx);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        pos = 80 * 10 + 10;
+        sprintf(reg_buf, "ECX: 0x%08X", regs->ecx);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        pos = 80 * 11 + 10;
+        sprintf(reg_buf, "EDX: 0x%08X", regs->edx);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        pos = 80 * 12 + 10;
+        sprintf(reg_buf, "ESP: 0x%08X", regs->esp_dummy);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        pos = 80 * 13 + 10;
+        sprintf(reg_buf, "EBP: 0x%08X", regs->ebp);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        pos = 80 * 14 + 10;
+        sprintf(reg_buf, "ESI: 0x%08X", regs->esi);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        pos = 80 * 15 + 10;
+        sprintf(reg_buf, "EDI: 0x%08X", regs->edi);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        pos = 80 * 16 + 10;
+        sprintf(reg_buf, "EIP: 0x%08X", regs->eip);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        pos = 80 * 17 + 10;
+        sprintf(reg_buf, "Error Code: 0x%08X", regs->err_code);
+        for (int i = 0; reg_buf[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | reg_buf[i];
+        }
+        
+        const char *halt_msg = "System halted. Please restart your computer.";
+        pos = 80 * 20 + 15;
+        for (int i = 0; halt_msg[i]; i++) {
+            ((uint16_t*)0xB8000)[pos++] = 0x1F00 | halt_msg[i];
+        }
+    } else {
+        printf("\nFAULT %s (int=0x%x) err=0x%x\n", name, regs->trapno, regs->err_code);
+        printf("System halted.\n");
+    }
+    
     __asm__ volatile ("cli; hlt");
 }
 

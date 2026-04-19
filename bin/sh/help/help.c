@@ -8,9 +8,10 @@ int cmd_help(int argc, char** argv) {
     if (argc < 2) {
         terminal_write("Available commands:\n");
         terminal_write("FILE: cat, cd, clear, cp, grep, head, ls, mkdir, mv, nano, rm, sort, tail, touch, uniq, wc\n");
-        terminal_write("UTIL: calc, date, echo, man, password, pwd, color, memory, free, top, vmstat, whoami\n");
+        terminal_write("UTIL: alias, calc, date, dmesg, echo, man, password, pwd, color, memory, free, top, vmstat, uptime, which, whoami\n");
+        terminal_write("DEV: gcc\n");
         terminal_write("GAMES: snake, vi\n");
-        terminal_write("SYSTEM: help, shutdown, reboot\n");
+        terminal_write("SYSTEM: help, shutdown, reboot, sysinfo\n");
         terminal_write("Usage: help [command]\n");
         return 0;
     }
@@ -113,6 +114,29 @@ int cmd_help(int argc, char** argv) {
         printf("  -l    Long format with sizes and types\n");
     } else if (!strcmp(cmd, "help")) {
         printf("help [cmd]: Detailed info on commands.\n");
+    } else if (!strcmp(cmd, "sysinfo")) {
+        printf("sysinfo: Display system information in a colorful, neofetch-like format.\n");
+        printf("Shows OS details, memory usage, uptime, and system specs.\n");
+    } else if (!strcmp(cmd, "alias")) {
+        printf("alias [name[=value]] | [-d name]: Create command shortcuts.\n");
+        printf("Usage:\n");
+        printf("  alias              # list all aliases\n");
+        printf("  alias ll='ls -l'   # create alias\n");
+        printf("  alias -d ll        # delete alias\n");
+        printf("Examples:\n");
+        printf("  alias ll='ls -l'\n");
+        printf("  alias la='ls -a'\n");
+        printf("  alias ..='cd ..'\n");
+    } else if (!strcmp(cmd, "uptime")) {
+        printf("uptime: Show how long the system has been running.\n");
+        printf("Displays uptime in HH:MM:SS format with days if applicable.\n");
+    } else if (!strcmp(cmd, "dmesg")) {
+        printf("dmesg: Print kernel boot/debug messages stored in a buffer.\n");
+        printf("Shows kernel initialization messages and system events.\n");
+    } else if (!strcmp(cmd, "which")) {
+        printf("which <command>: Locate a command in the VFS.\n");
+        printf("Shows the full path to the specified command if found.\n");
+        printf("Usage: which ls, which gcc, etc.\n");
     } else {
         printf("Unknown command.\n");
     }

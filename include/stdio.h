@@ -36,5 +36,6 @@ int putchar(int c);
 int putc(int c, FILE *stream);
 int getchar();
 int printf(const char *restrict, ...);
+int sprintf(char *restrict str, const char *restrict format, ...);
 
 #endif /* _STDIO_H_ */

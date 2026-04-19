@@ -39,10 +39,11 @@ int cmd_password(int argc, char** argv) {
         uint32_t entered_hash = hash_password(pwd_buf);
         if (entered_hash != system_password_hash) {
             printf("password: incorrect old password\n");
+            pc_speaker_beep(150, 200);
             return 1;
         }
     }
-    
+
     /* Get new password */
     printf("Enter new password: ");
     int i = 0;
@@ -58,6 +59,7 @@ int cmd_password(int argc, char** argv) {
     
     if (i == 0) {
         printf("password: password too short\n");
+        pc_speaker_beep(150, 200);
         return 1;
     }
     
@@ -76,6 +78,7 @@ int cmd_password(int argc, char** argv) {
     
     if (strcmp(pwd_buf, confirm_buf) != 0) {
         printf("password: passwords do not match\n");
+        pc_speaker_beep(150, 200);
         return 1;
     }
     

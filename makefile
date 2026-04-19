@@ -67,6 +67,7 @@ SRC = \
 	$(DRVR_INP_DIR)/pskey.c \
 	$(DRVR_VGA_DIR)/vgamode3.c \
 	$(DRVR_DIR)/nvram/nvram.c \
+	$(DRVR_DIR)/nvram/rtc.c \
 	$(BIN_DIR)/ls/ls.c \
 	$(BIN_DIR)/mkdir/sh_mkdir.c \
 	$(BIN_DIR)/cat/cat.c \
@@ -96,6 +97,11 @@ SRC = \
 	$(BIN_DIR)/uniq/uniq.c \
 	$(BIN_DIR)/whoami/whoami.c \
 	$(BIN_DIR)/password/password.c \
+	$(BIN_DIR)/sysinfo/sysinfo.c \
+	$(BIN_DIR)/gcc/gcc.c \
+	$(BIN_DIR)/uptime/uptime.c \
+	$(BIN_DIR)/dmesg/dmesg.c \
+	$(BIN_DIR)/which/which.c \
 	$(CMD_DIR)/sh.c \
 	$(CMD_DIR)/cd/cd.c \
 	$(CMD_DIR)/help/help.c \
@@ -108,6 +114,7 @@ STDIO_SRC = \
 	$(STDIO_DIR)/putc.c \
 	$(STDIO_DIR)/putchar.c \
 	$(STDIO_DIR)/printf.c \
+	$(STDIO_DIR)/sprintf.c \
 
 STRING_SRC = \
 	$(STRING_DIR)/memset.c \
@@ -116,6 +123,7 @@ STRING_SRC = \
 	$(STRING_DIR)/strcmp.c \
 	$(STRING_DIR)/strlen.c \
 	$(STRING_DIR)/strcpy.c \
+	$(STRING_DIR)/strcat.c \
 	$(STRING_DIR)/strstr.c \
 	$(STRING_DIR)/strchr.c \
 	$(STRING_DIR)/strncpy.c \
@@ -136,11 +144,13 @@ USER_LIBC_SRC = \
 	$(USER_LIBC_DIR)/stdio/putc.c \
 	$(USER_LIBC_DIR)/string/strlen.c \
 	$(USER_LIBC_DIR)/string/strcpy.c \
+	$(USER_LIBC_DIR)/string/strcat.c \
 	$(USER_LIBC_DIR)/string/strcmp.c \
 	$(USER_LIBC_DIR)/string/memcpy.c \
 	$(USER_LIBC_DIR)/string/memmove.c \
 	$(USER_LIBC_DIR)/string/memset.c \
 	$(USER_LIBC_DIR)/unistd/write.c \
+	$(USER_LIBC_DIR)/unistd/sysinfo.c \
 	$(USER_LIBC_DIR)/stdio/streams.c \
 
 # User programs
@@ -149,6 +159,8 @@ USER_LIBC_SRC = \
 
 USER_PROG_SRCS = \
 	bin/hello/hello.c \
+	bin/userprogs/simple.c \
+	bin/userprogs/echo_user.c
 
 USER_PROGS = $(patsubst %.c,$(USER_OBJ_DIR)/%.elf,$(notdir $(USER_PROG_SRCS)))
 
