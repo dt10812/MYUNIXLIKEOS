@@ -28,6 +28,8 @@ struct itimerspec{
     struct timespec it_value;    /* timer expiration */
 };
 
+struct sigevent;
+
 char      *asctime(const struct tm *);
 char      *asctime_r(const struct tm *, char *);
 clock_t    clock(void);

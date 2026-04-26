@@ -1,7 +1,9 @@
 #include "string.h"
 
-int strncmp(const char *s1, const char *s2, size_t n) {
-    if (!n) return 0;
-    for (; n && *s1 && (*s1 == *s2); s1++, s2++, n--);
-    return *(unsigned char *)s1 - *(unsigned char *)s2;
+char *strncpy(char *restrict s1, const char *restrict s2, size_t n) {
+    char *s1ptr = (char *)s1;
+    const char *s2ptr = s2;
+    for (; n && *s2ptr; n--, *s1ptr++ = *s2ptr++);
+    for (; n; n--) *s1ptr++ = '\0';
+    return s1;
 }

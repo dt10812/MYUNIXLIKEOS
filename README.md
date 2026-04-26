@@ -8,6 +8,12 @@ A 32-bit Unix-like operating system kernel built from scratch. This project impl
 - **CLI**: Custom shell supporting `ls`, `cd`, `cat`, `grep`, `mkdir`, `touch`, `fs`, `clear` and a basic `nano` editor.
 - **Keyboard Driver**: PS/2 Set 1 support for all letters and base symbols `-=[]\;',./` and Shift key.
 - **Filesystem**: Integrated Virtual File System layer.
+- **Stack Canary Protection**: Kernel uses GCC stack protector support to detect stack buffer overflows at runtime.
+
+## Security
+- **Stack canaries enabled** via `-fstack-protector-all` in the kernel build.
+- The boot process initializes `__stack_chk_guard` using RTC entropy and kernel memory state.
+- If stack corruption is detected, `__stack_chk_fail()` halts the system safely and prints an alert.
 
 ## Prerequisites (macOS)
 This project is currently optimized for development on macOS. You will need the following tools installed via [Homebrew](https://brew.sh/):
@@ -27,7 +33,7 @@ The primary objective of this project is to evolve from a basic hobbyist kernel 
 - **Advanced Input Handling:** Our immediate goal is to expand the keyboard driver to support the full ASCII set, including uppercase letters, shifted symbols (`!@#$%^&*()_+`), and modifier keys (Control). While the current implementation successfully handles lowercase characters and base symbols, the transition to a state-based driver for full modifier support is the next major milestone.
 - **Extended CLI Toolset:** We are working to broaden the native command suite beyond basic file manipulation (e.g. `ls`, `cat`, `touch`) to include more complex Unix utilities.
 - **Networking Stack:** In the long term, we aim to implement a network stack to enable basic socket communication and networking capabilities directly from the kernel.
-- - **Proper Documentations** We aim to perfect the documentations to build the OS and also guide our new contributors about how to improve our OS.
+- **Documentation:** We maintain clear build instructions and contributor guides to help new developers improve the OS.
 ## System Requirements
 To successfully pass the GRUB bootloader and initialize the kernel, the following hardware is required:
 

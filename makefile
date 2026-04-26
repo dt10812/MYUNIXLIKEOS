@@ -41,7 +41,7 @@ OBJ_DIR       = $(USER_DIR)/obj/sys
 
 # Kernel flags
 ASFLAGS = -f elf32
-CFLAGS  = -ffreestanding -O2 -m32 -fno-stack-protector -fno-builtin \
+CFLAGS  = -ffreestanding -O2 -m32 -fstack-protector-all -fno-builtin \
           -Wall -Wextra -I$(INCLUDE_DIR) -Icommands
 LDFLAGS = -m elf_i386 -n -T linker.ld
 
@@ -102,6 +102,7 @@ SRC = \
 	$(BIN_DIR)/uptime/uptime.c \
 	$(BIN_DIR)/dmesg/dmesg.c \
 	$(BIN_DIR)/which/which.c \
+	$(BIN_DIR)/uname/uname.c \
 	$(CMD_DIR)/sh.c \
 	$(CMD_DIR)/cd/cd.c \
 	$(CMD_DIR)/help/help.c \
@@ -121,9 +122,11 @@ STRING_SRC = \
 	$(STRING_DIR)/memcpy.c \
 	$(STRING_DIR)/memmove.c \
 	$(STRING_DIR)/strcmp.c \
+	$(STRING_DIR)/strncmp.c \
 	$(STRING_DIR)/strlen.c \
 	$(STRING_DIR)/strcpy.c \
 	$(STRING_DIR)/strcat.c \
+	$(STRING_DIR)/strncat.c \
 	$(STRING_DIR)/strstr.c \
 	$(STRING_DIR)/strchr.c \
 	$(STRING_DIR)/strncpy.c \

@@ -137,6 +137,25 @@ int cmd_help(int argc, char** argv) {
         printf("which <command>: Locate a command in the VFS.\n");
         printf("Shows the full path to the specified command if found.\n");
         printf("Usage: which ls, which gcc, etc.\n");
+    } else if (!strcmp(cmd, "clear")) {
+        printf("clear: Clear the terminal screen.\n");
+        printf("Usage: clear\n");
+    } else if (!strcmp(cmd, "uname")) {
+        printf("uname [flags]: Display system information.\n");
+        printf("Flags:\n");
+        printf("  -a, --all       Display all information\n");
+        printf("  -s, --sysname   Display system name (default)\n");
+        printf("  -n, --nodename  Display hostname\n");
+        printf("  -r, --release   Display release version\n");
+        printf("  -v, --version   Display version info\n");
+        printf("  -m, --machine   Display machine type\n");
+        printf("Examples:\n");
+        printf("  uname            # displays system name\n");
+        printf("  uname -a         # displays all info\n");
+    } else if (!strcmp(cmd, "exec")) {
+        printf("exec <program> [args]: Execute a program directly (replaces shell).\n");
+        printf("Usage: exec /path/to/program arg1 arg2\n");
+        printf("Note: This will execute the program and return to shell if it exits.\n");
     } else {
         printf("Unknown command.\n");
     }

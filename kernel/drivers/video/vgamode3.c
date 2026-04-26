@@ -9,6 +9,25 @@ size_t terminal_row = 0;
 size_t terminal_col = 0;
 uint8_t terminal_color = 0x0F;
 
+/* Hardware-aware VGA scroll: shift content up by one row and clear bottom row */
+static void vga_scroll_up(void) {
+    /* Copy rows 1-24 to rows 0-23 (shift up by one row) */
+    /* Each row is TERM_WIDTH (80) uint16_t entries = 160 bytes */
+    memmove((void*)(VGA_BUFFER), 
+            (const void*)(VGA_BUFFER + TERM_WIDTH), 
+            (TERM_HEIGHT - 1) * TERM_WIDTH * sizeof(uint16_t));
+    
+    /* Clear the bottom row (row 24) */
+    for (size_t i = 0; i < TERM_WIDTH; i++) {
+        VGA_BUFFER[(TERM_HEIGHT - 1) * TERM_WIDTH + i] = 
+            ((uint16_t)terminal_color << 8) | ' ';
+    }
+    
+    /* Position cursor at start of last row */
+    terminal_row = TERM_HEIGHT - 1;
+    terminal_col = 0;
+}
+
 void move_cursor(int x, int y) {
     uint16_t pos = y * 80 + x;
     outb(0x3D4, 0x0E);
@@ -23,8 +42,11 @@ void terminal_putc(char c) {
     if (c == '\n') {
         terminal_col = 0;
         terminal_row++;
-        if (terminal_row >= TERM_HEIGHT) terminal_row = TERM_HEIGHT - 1;
-        move_cursor(terminal_col, terminal_row);
+        if (terminal_row >= TERM_HEIGHT) {
+            vga_scroll_up();
+        } else {
+            move_cursor(terminal_col, terminal_row);
+        }
         return;
     }
     VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] =
@@ -33,9 +55,14 @@ void terminal_putc(char c) {
     if (terminal_col >= TERM_WIDTH) {
         terminal_col = 0;
         terminal_row++;
-        if (terminal_row >= TERM_HEIGHT) terminal_row = TERM_HEIGHT - 1;
+        if (terminal_row >= TERM_HEIGHT) {
+            vga_scroll_up();
+        } else {
+            move_cursor(terminal_col, terminal_row);
+        }
+    } else {
+        move_cursor(terminal_col, terminal_row);
     }
-    move_cursor(terminal_col, terminal_row);
 }
 
 void terminal_backspace(void) {
@@ -47,7 +74,8 @@ void terminal_backspace(void) {
     } else {
         terminal_col--;
     }
-    VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] = ' ';
+    VGA_BUFFER[terminal_row * TERM_WIDTH + terminal_col] = 
+        ((uint16_t)terminal_color << 8) | ' ';
     move_cursor(terminal_col, terminal_row);
 }
 

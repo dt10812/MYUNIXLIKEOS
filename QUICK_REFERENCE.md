@@ -180,6 +180,7 @@ $ cat help.txt                  Read notes
 - **ENHANCEMENTS_SUMMARY.md** - Detailed changes made
 - **EXT2_DOCUMENTATION.md** - File system deep dive
 - **README.md** - Project overview
+- **SECURITY.md** - Kernel security features
 - **CONTRIBUTING.md** - How to contribute
 
 ---

@@ -6,12 +6,25 @@
 #include "stdbool.h"
 #include "keyboard.h"
 
+/* Input buffer for improved keyboard throughput */
+#define INPUT_BUFFER_SIZE 256
+char input_buffer[INPUT_BUFFER_SIZE];
+size_t buffer_write_idx = 0;
+size_t buffer_read_idx = 0;
+
 static keyboard_layout_t current_layout = KEYBOARD_LAYOUT_QWERTY;
 
 static bool shift_down = false;
 static bool ctrl_down = false;
 static bool alt_down = false;
 static bool capslock_on = false;
+static bool extended_scancode = false;
+
+/* Special key codes for arrow keys */
+#define KEY_UP    0xE0
+#define KEY_DOWN  0xE1
+#define KEY_LEFT  0xE2
+#define KEY_RIGHT 0xE3
 
 static const char qwerty_table[0x80] = {
     0, 0x1B, '1', '2', '3', '4', '5', '6', '7', '8',
@@ -107,6 +120,24 @@ char keyboard_getchar(void) {
     for (;;) {
         while (!(inb(0x64) & 1));
         uint8_t c = inb(0x60);
+        
+        /* Handle extended scancodes (0xE0 prefix) */
+        if (c == 0xE0) {
+            extended_scancode = true;
+            continue;
+        }
+        
+        if (extended_scancode) {
+            extended_scancode = false;
+            switch (c) {
+                case 0x48: return KEY_UP;
+                case 0x50: return KEY_DOWN;
+                case 0x4B: return KEY_LEFT;
+                case 0x4D: return KEY_RIGHT;
+                default: continue; /* Ignore other extended keys */
+            }
+        }
+        
         if (c == 0x2A || c == 0x36) {
             shift_down = true;
             continue;
@@ -146,6 +177,24 @@ char keyboard_pollchar(void) {
         return 0;
 
     uint8_t c = inb(0x60);
+    
+    /* Handle extended scancodes (0xE0 prefix) */
+    if (c == 0xE0) {
+        extended_scancode = true;
+        return 0;
+    }
+    
+    if (extended_scancode) {
+        extended_scancode = false;
+        switch (c) {
+            case 0x48: return KEY_UP;
+            case 0x50: return KEY_DOWN;
+            case 0x4B: return KEY_LEFT;
+            case 0x4D: return KEY_RIGHT;
+            default: return 0; /* Ignore other extended keys */
+        }
+    }
+    
     if (c == 0x2A || c == 0x36) {
         shift_down = true;
         return 0;
@@ -179,14 +228,52 @@ char keyboard_pollchar(void) {
     return translate_scancode(c);
 }
 
+/* Buffer input from keyboard for higher throughput */
+static char buffer_getchar(void) {
+    char c = keyboard_pollchar();
+    if (c && buffer_write_idx < INPUT_BUFFER_SIZE) {
+        input_buffer[buffer_write_idx++] = c;
+    }
+    return c;
+}
+
+/* Read from the buffer */
+static char buffer_read(void) {
+    if (buffer_read_idx < buffer_write_idx) {
+        return input_buffer[buffer_read_idx++];
+    }
+    return 0;
+}
+
+/* Reset buffer state */
+static void buffer_reset(void) {
+    buffer_write_idx = 0;
+    buffer_read_idx = 0;
+}
+
 void read_line(char* buf, size_t size) {
     size_t idx = 0;
+    buffer_reset();
+    
     while (true) {
-        char c = keyboard_getchar();
+        /* First try to read from the buffer */
+        char c = buffer_read();
+        
+        /* If buffer is empty, collect characters from keyboard */
+        if (!c) {
+            c = keyboard_pollchar();
+            if (!c) {
+                /* No input available, try blocking getchar as fallback */
+                c = keyboard_getchar();
+            }
+        }
+        
         if (!c) continue;
+        
         if (c == '\r' || c == '\n') {
             terminal_write("\n");
             buf[idx] = '\0';
+            buffer_reset();
             return;
         }
         if ((c == '\b' || c == 0x7F) && idx > 0) {

@@ -52,6 +52,7 @@ int cmd_alias(int argc, char** argv);
 int cmd_uptime(int argc, char** argv);
 int cmd_dmesg(int argc, char** argv);
 int cmd_which(int argc, char** argv);
+int cmd_uname(int argc, char** argv);
 
 void sh(void);
 

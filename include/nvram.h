@@ -44,6 +44,9 @@ struct nvram_t {
 
 void readNVRAM(uint8_t *out);
 void writeNVRAM(uint8_t *in);
+void rtc_get_time(uint8_t *sec, uint8_t *min, uint8_t *hour,
+                  uint8_t *day, uint8_t *month, uint8_t *year,
+                  uint8_t *century);
 uint8_t bcd(uint8_t v);
 
 #endif

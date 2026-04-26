@@ -15,10 +15,53 @@
 #include "idt.h"
 #include "gdt.h"
 #include "sys/time.h"
+#include "nvram.h"
 #include "multiboot.h"
 #include "keyboard.h"
 
 char fs_type_name[16] = "Ext2";
+
+/* Stack canary for buffer overflow protection */
+uintptr_t __stack_chk_guard = 0xDEADBEEF;
+
+/* Stack canary failure handler */
+__attribute__((noreturn))
+void __stack_chk_fail(void) {
+    /* Stack corruption detected - panic */
+    printf("\n*** STACK BUFFER OVERFLOW DETECTED ***\n");
+    printf("System halting for security.\n");
+    
+    /* Disable interrupts and halt */
+    asm volatile("cli");
+    for (;;) {
+        asm volatile("hlt");
+    }
+}
+
+static uintptr_t stack_canary_seed(void) {
+    uint8_t sec, min, hour, day, month, year, century;
+    rtc_get_time(&sec, &min, &hour, &day, &month, &year, &century);
+
+    uintptr_t seed = ((uintptr_t)sec << 24) | ((uintptr_t)min << 16) |
+                     ((uintptr_t)hour << 8) | (uintptr_t)day;
+
+    seed ^= ((uintptr_t)month << 24) | ((uintptr_t)year << 16) |
+            ((uintptr_t)century << 8) | (uintptr_t)&stack_canary_seed;
+    seed ^= (uintptr_t)&__stack_chk_guard;
+    seed ^= 0xA5A5A5A5u;
+
+    if (seed == 0)
+        seed = 0xDEADBEEF ^ (uintptr_t)&stack_canary_seed;
+
+    return seed;
+}
+
+/* Initialize stack canary with runtime entropy */
+static void init_stack_canary(void) {
+    __stack_chk_guard = stack_canary_seed();
+    if (__stack_chk_guard == 0 || (__stack_chk_guard & 0xFF) == 0)
+        __stack_chk_guard |= 0xA1A5A5A5u;
+}
 
 /* Kernel log buffer for dmesg */
 #define KERNEL_LOG_SIZE 4096
@@ -523,6 +566,10 @@ void kernel_main(uint32_t magic, struct multiboot_info* mbi) {
     serial_write("k");
     kernel_log("[    0.000012] Keyboard driver initialized\n");
     
+    /* Initialize stack canary for buffer overflow protection */
+    init_stack_canary();
+    kernel_log("[    0.000013] Stack canary initialized\n");
+    
     vga[vga_idx++] = 0x0200 | 'T';  /* Green 'T' - about to set TSS */
     serial_write("T");
     kernel_log("[    0.000013] Setting up TSS...\n");
@@ -560,6 +607,20 @@ void kernel_main(uint32_t magic, struct multiboot_info* mbi) {
     localtime_r(&t, &bt);
     printf("%s %s %i:%i %i UTC\n", days[bt.tm_wday],
         months[bt.tm_mon], bt.tm_hour, bt.tm_min, bt.tm_year);
+    
+    /* Display splash screen */
+    printf("\n");
+    printf("\xC9\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xBB\n");
+    printf("\xBA                                                        \xBA\n");
+    printf("\xBA           Welcome to MYUNIXLIKEOS v1.0.0              \xBA\n");
+    printf("\xBA                                                        \xBA\n");
+    printf("\xBA        A minimal Unix-like OS for x86 systems         \xBA\n");
+    printf("\xBA                                                        \xBA\n");
+    printf("\xBA  Type 'help' for available commands                   \xBA\n");
+    printf("\xBA  Type 'man <command>' for command documentation       \xBA\n");
+    printf("\xBA                                                        \xBA\n");
+    printf("\xC8\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xBC\n");
+    printf("\n");
     
     kernel_log("[    0.000018] Starting shell...\n");
     /* Start the shell */
