@@ -61,6 +61,7 @@ extern void cmd_clear(void);
 /* Access keyboard buffer directly since we're in kernel space */
 
 static void shell_buffer_reset(void) {
+    memset(input_buffer, 0, INPUT_BUFFER_SIZE);
     buffer_read_idx = 0;
     buffer_write_idx = 0;
 }
@@ -79,7 +80,7 @@ static void shell_read_line(char *buf, size_t size) {
     
     shell_buffer_reset();
     
-    while (true) {
+    while (1) {
         /* First try to read from the buffer */
         char c = shell_buffer_read();
         
@@ -353,7 +354,7 @@ void sh(void) {
     init_default_env();
 
     for (;;) {
-        printf("root@dev_null# ");
+        terminal_write("root@dev_null# ");
 
         memset(buf,  0, sizeof(buf));
         memset(argv, 0, sizeof(argv));

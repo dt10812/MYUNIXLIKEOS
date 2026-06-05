@@ -97,6 +97,38 @@ int k_install(const char* name, const uint8_t* data, uint32_t size) {
     return 0;
 }
 
+int k_unlink(const char* path) {
+    if (!path || !*path) return -1;
+    vnode_t* node = vfs_lookup(path);
+    if (!node || !(node->flags & VFS_FILE)) return -1;
+    vnode_t* parent = node->parent;
+    if (!parent) return -1;
+
+    int found = -1;
+    for (uint32_t i = 0; i < parent->child_count; i++) {
+        if (parent->children[i] == node) {
+            found = (int)i;
+            break;
+        }
+    }
+    if (found < 0) return -1;
+
+    for (uint32_t i = found; i + 1 < parent->child_count; i++) {
+        parent->children[i] = parent->children[i + 1];
+    }
+    parent->child_count--;
+
+    if (node->content) {
+        node->content = NULL;
+    }
+
+    node->flags = 0;
+    node->parent = NULL;
+    node->child_count = 0;
+    node->size = 0;
+    return 0;
+}
+
 /* ── ELF execution ────────────────────────────────────────────────────────── */
 
 #define USER_STACK_SIZE PAGE_SIZE
@@ -143,12 +175,16 @@ int k_exec(const char *path, const char **argv) {
         return -1;
     }
 
-    /* allocate one page for the user stack */
-    uint8_t *stack_page = pmm_alloc_page();
+    /* allocate one page for the user stack and map it into user space */
+    uintptr_t stack_page = (uintptr_t)pmm_alloc_page();
     if (!stack_page) {
         printf("exec: out of memory\n");
         return -1;
     }
+    memset((void*)stack_page, 0, PAGE_SIZE);
+
+    uintptr_t user_stack_virt = 0xBFFFFFFF - PAGE_SIZE + 1;
+    map_page(user_stack_virt, stack_page, PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
 
     /* Build argc/argv on the user stack.
      * Use a pointer that walks DOWN from the top of the page.
@@ -156,7 +192,7 @@ int k_exec(const char *path, const char **argv) {
      * pointer array + argc below that.
      */
     /* align down first so the frame we build is naturally aligned */
-    uint8_t *stk_top = stack_page + USER_STACK_SIZE;
+    uint8_t *stk_top = (uint8_t *)(user_stack_virt + USER_STACK_SIZE);
     uint8_t *str_ptr = (uint8_t *)((uint32_t)stk_top & ~0xFU);
 
     /* count args and copy string data onto stack */
@@ -164,8 +200,16 @@ int k_exec(const char *path, const char **argv) {
     uint32_t arg_ptrs[16];
 
     if (argv) {
-        while (argv[argc] && argc < 15) {
+        while (argv[argc]) {
+            if (argc >= 15) {
+                printf("exec: too many arguments\n");
+                return -1;
+            }
             size_t len = strlen(argv[argc]) + 1;
+            if (str_ptr - len < (uint8_t*)user_stack_virt) {
+                printf("exec: user stack overflow\n");
+                return -1;
+            }
             str_ptr -= len;
             memcpy(str_ptr, argv[argc], len);
             arg_ptrs[argc] = (uint32_t)str_ptr;

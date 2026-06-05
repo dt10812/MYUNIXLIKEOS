@@ -120,9 +120,7 @@ int bitmap_test(uint64_t bit) {
 }
 
 void pmm_init(void* mmap_tag) {
-    serial_write("pmm_start");
     if (!mmap_tag) {
-        serial_write("fallback");
         /* Fallback to minimal memory for testing */
         pmm_memory_start = 0x100000; /* 1MB */
         pmm_total_memory_pages = 1024; /* 4MB */
@@ -141,11 +139,9 @@ void pmm_init(void* mmap_tag) {
             bitmap_set(bitmap_page_start + i);
         }
         pmm_available_pages = pmm_total_memory_pages - bitmap_pages;
-        serial_write("fallback_done");
         return;
     }
     
-    serial_write("parsing_mmap");
     struct multiboot_tag_mmap* mmap = (struct multiboot_tag_mmap*)mmap_tag;
     struct multiboot_mmap_entry* entry = (struct multiboot_mmap_entry*)mmap->entries;
     
@@ -154,8 +150,6 @@ void pmm_init(void* mmap_tag) {
     size_t max_len = 0;
     
     size_t num_entries = (mmap->size - sizeof(struct multiboot_tag_mmap)) / mmap->entry_size;
-    serial_write("num_entries:");
-    serial_write(num_entries < 10 ? (char[]){'0' + num_entries, '\0'} : "many");
     for (size_t i = 0; i < num_entries; i++) {
         if (entry[i].type == MULTIBOOT_MEMORY_AVAILABLE && 
             entry[i].len > max_len &&
@@ -165,15 +159,12 @@ void pmm_init(void* mmap_tag) {
         }
     }
     
-    serial_write("max_len_found");
     if (max_len == 0) {
-        serial_write("no_mem_fallback");
         /* No suitable memory found, fallback */
         pmm_init(NULL);
         return;
     }
     
-    serial_write("setting_pmm");
     pmm_memory_start = max_addr;
     pmm_total_memory_pages = max_len / PAGE_SIZE;
     
@@ -236,7 +227,6 @@ void pmm_init(void* mmap_tag) {
         bitmap_set(i);
         pmm_available_pages--;
     }
-    serial_write("pmm_done");
 }
 
 void* pmm_alloc_page(void) {
@@ -314,10 +304,13 @@ void pmm_free_blocks(void* ptr, size_t count) {
 }
 
 void* pmm_alloc_z(size_t size) {
-    void* p = pmm_alloc_page();
+    if (size == 0) return NULL;
+
+    size_t page_count = (size + PAGE_SIZE - 1) / PAGE_SIZE;
+    void* p = pmm_alloc_blocks(page_count);
     if (!p) return NULL;
-    size_t n = size < PAGE_SIZE ? size : PAGE_SIZE;
-    for (size_t i = 0; i < n; i++) ((uint8_t*)p)[i] = 0;
+
+    memset(p, 0, page_count * PAGE_SIZE);
     return p;
 }
 
@@ -333,16 +326,307 @@ size_t pmm_free_pages(void) {
     return pmm_available_pages;
 }
 
-/* Kernel heap allocator */
+/* Kernel heap allocator - page-backed, node-coalescing heap */
+#define HEAP_START KERNEL_HEAP_START
+#define HEAP_SIZE  KERNEL_HEAP_SIZE
+#define HEAP_ALIGN 8
+#define HEAP_PAGE_MAGIC 0xC0FFEE42u
+#define HEAP_BLOCK_MAGIC 0xA110CA7Eu
+#define HEAP_MIN_SPLIT 16
+
+typedef struct heap_block {
+    uint32_t magic;
+    size_t size;
+    struct heap_block* next;
+    struct heap_block* prev;
+    int free;
+    struct heap_page* page;
+} heap_block_t;
+
+typedef struct heap_page {
+    uint32_t magic;
+    uintptr_t phys_addr;
+    uintptr_t virt_addr;
+    struct heap_page* next;
+    struct heap_page* prev;
+    heap_block_t* first_block;
+} heap_page_t;
+
+static heap_page_t* heap_pages = NULL;
+static uintptr_t heap_next_virtual = HEAP_START;
+
+static inline uintptr_t align_up(uintptr_t value, uintptr_t alignment) {
+    uintptr_t mask = alignment - 1;
+    return (value + mask) & ~mask;
+}
+
+static inline uintptr_t align_down(uintptr_t value, uintptr_t alignment) {
+    uintptr_t mask = alignment - 1;
+    return value & ~mask;
+}
+
+static int heap_validate_block(heap_page_t* page, heap_block_t* block) {
+    if (!page || !block) {
+        return 0;
+    }
+    if (block->magic != HEAP_BLOCK_MAGIC) {
+        return 0;
+    }
+    if (block->page != page) {
+        return 0;
+    }
+
+    uintptr_t page_start = page->virt_addr;
+    uintptr_t page_end = page_start + PAGE_SIZE;
+    uintptr_t block_addr = (uintptr_t)block;
+
+    if (block_addr < page_start || block_addr + sizeof(heap_block_t) > page_end) {
+        return 0;
+    }
+    if ((block_addr & (HEAP_ALIGN - 1)) != 0) {
+        return 0;
+    }
+    if (block->size == 0 || (block->size & (HEAP_ALIGN - 1)) != 0) {
+        return 0;
+    }
+    uintptr_t block_end = block_addr + sizeof(heap_block_t);
+    if (block_end > page_end || block->size > page_end - block_end) {
+        return 0;
+    }
+
+    uintptr_t expected_next = block_end + block->size;
+    if (block->next) {
+        uintptr_t next_addr = (uintptr_t)block->next;
+        if (next_addr < page_start || next_addr > page_end) {
+            return 0;
+        }
+        if (next_addr + sizeof(heap_block_t) > page_end) {
+            return 0;
+        }
+        if (next_addr != expected_next) {
+            return 0;
+        }
+        heap_block_t* next_block = (heap_block_t*)next_addr;
+        if (next_block->magic != HEAP_BLOCK_MAGIC) {
+            return 0;
+        }
+        if (next_block->prev != block) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static int heap_validate_page(heap_page_t* page) {
+    if (!page || page->magic != HEAP_PAGE_MAGIC) {
+        return 0;
+    }
+    if (page->virt_addr < HEAP_START || page->virt_addr + PAGE_SIZE > HEAP_START + HEAP_SIZE) {
+        return 0;
+    }
+    if (page->first_block == NULL) {
+        return 0;
+    }
+    if (page->first_block->page != page) {
+        return 0;
+    }
+
+    heap_block_t* current = page->first_block;
+    while (current) {
+        if (!heap_validate_block(page, current)) {
+            return 0;
+        }
+        current = current->next;
+    }
+
+    return 1;
+}
+
+static heap_page_t* heap_alloc_page(void) {
+    if (heap_next_virtual + PAGE_SIZE > HEAP_START + HEAP_SIZE) {
+        return NULL;
+    }
+
+    void* phys = pmm_alloc_page();
+    if (!phys) {
+        return NULL;
+    }
+
+    uintptr_t virt = heap_next_virtual;
+    heap_next_virtual += PAGE_SIZE;
+
+    map_page(virt, (uintptr_t)phys, PAGE_PRESENT | PAGE_WRITE);
+
+    heap_page_t* page = (heap_page_t*)virt;
+    memset(page, 0, sizeof(heap_page_t));
+    page->magic = HEAP_PAGE_MAGIC;
+    page->phys_addr = (uintptr_t)phys;
+    page->virt_addr = virt;
+
+    uintptr_t block_addr = align_up(virt + sizeof(heap_page_t), HEAP_ALIGN);
+    size_t block_size = PAGE_SIZE - (block_addr - virt) - sizeof(heap_block_t);
+    block_size = align_down(block_size, HEAP_ALIGN);
+
+    heap_block_t* block = (heap_block_t*)block_addr;
+    memset(block, 0, sizeof(heap_block_t));
+    block->magic = HEAP_BLOCK_MAGIC;
+    block->size = block_size;
+    block->next = NULL;
+    block->prev = NULL;
+    block->free = 1;
+    block->page = page;
+    page->first_block = block;
+
+    page->next = heap_pages;
+    page->prev = NULL;
+    if (heap_pages) {
+        heap_pages->prev = page;
+    }
+    heap_pages = page;
+
+    return page;
+}
+
+static heap_block_t* heap_find_free_block(heap_page_t* page, size_t size) {
+    if (!heap_validate_page(page)) {
+        return NULL;
+    }
+
+    heap_block_t* current = page->first_block;
+    while (current) {
+        if (!heap_validate_block(page, current)) {
+            return NULL;
+        }
+        if (current->free && current->size >= size) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+void heap_init(void) {
+    heap_pages = NULL;
+    heap_next_virtual = HEAP_START;
+
+    heap_page_t* page = heap_alloc_page();
+    if (!page) {
+        printf("Failed to allocate heap page\n");
+        return;
+    }
+}
+
 void* kmalloc(size_t size) {
     if (size == 0) return NULL;
-    
-    /* For now, just allocate whole pages */
-    return pmm_alloc_page();
+
+    if (size > (size_t)-1 - (HEAP_ALIGN - 1)) {
+        return NULL;
+    }
+    size = align_up(size, HEAP_ALIGN);
+
+    while (1) {
+        heap_page_t* page = heap_pages;
+        while (page) {
+            if (!heap_validate_page(page)) {
+                printf("heap: corrupted page detected\n");
+                return NULL;
+            }
+
+            heap_block_t* block = heap_find_free_block(page, size);
+            if (block) {
+                uintptr_t block_addr = (uintptr_t)block;
+                uintptr_t page_end = page->virt_addr + PAGE_SIZE;
+                uintptr_t payload_end = block_addr + sizeof(heap_block_t);
+                size_t remaining = 0;
+
+                if (payload_end > page_end) {
+                    printf("heap: corrupted block boundary\n");
+                    return NULL;
+                }
+
+                if (size <= page_end - payload_end) {
+                    uintptr_t remainder = payload_end + size;
+                    remaining = page_end - remainder;
+
+                    if (remaining >= sizeof(heap_block_t) + HEAP_MIN_SPLIT) {
+                        heap_block_t* new_block = (heap_block_t*)remainder;
+                        memset(new_block, 0, sizeof(heap_block_t));
+                        new_block->magic = HEAP_BLOCK_MAGIC;
+                        new_block->size = align_down(remaining - sizeof(heap_block_t), HEAP_ALIGN);
+                        new_block->free = 1;
+                        new_block->page = page;
+                        new_block->prev = block;
+                        new_block->next = block->next;
+                        if (block->next) {
+                            block->next->prev = new_block;
+                        }
+                        block->next = new_block;
+                        block->size = size;
+                    }
+                }
+
+                block->free = 0;
+                return (void*)((char*)block + sizeof(heap_block_t));
+            }
+            page = page->next;
+        }
+
+        if (!heap_alloc_page()) {
+            return NULL;
+        }
+    }
 }
 
 void kfree(void* ptr) {
-    pmm_free_page(ptr);
+    if (!ptr) return;
+
+    uintptr_t ptr_addr = (uintptr_t)ptr;
+    if (ptr_addr < HEAP_START || ptr_addr >= HEAP_START + HEAP_SIZE) {
+        return;
+    }
+
+    heap_block_t* block = (heap_block_t*)((char*)ptr - sizeof(heap_block_t));
+    if ((uintptr_t)block < HEAP_START || (uintptr_t)block >= HEAP_START + HEAP_SIZE) {
+        return;
+    }
+    if (block->magic != HEAP_BLOCK_MAGIC) return;
+
+    heap_page_t* page = block->page;
+    if (!page || page->magic != HEAP_PAGE_MAGIC) return;
+    if (!heap_validate_page(page)) {
+        printf("heap: corrupted page detected during free\n");
+        return;
+    }
+
+    uintptr_t page_start = page->virt_addr;
+    uintptr_t page_end = page_start + PAGE_SIZE;
+    uintptr_t block_addr = (uintptr_t)block;
+    if (block_addr < page_start || block_addr + sizeof(heap_block_t) > page_end) return;
+    if ((uintptr_t)block->next != 0 && (uintptr_t)block->next != block_addr + sizeof(heap_block_t) + block->size) {
+        printf("heap: corrupted block links\n");
+        return;
+    }
+
+    if (block->free) return;
+
+    block->free = 1;
+
+    if (block->next && block->next->free) {
+        block->size += sizeof(heap_block_t) + block->next->size;
+        block->next = block->next->next;
+        if (block->next) {
+            block->next->prev = block;
+        }
+    }
+
+    if (block->prev && block->prev->free) {
+        block->prev->size += sizeof(heap_block_t) + block->size;
+        block->prev->next = block->next;
+        if (block->next) {
+            block->next->prev = block->prev;
+        }
+    }
 }
 
 /* Paging implementation */
@@ -357,18 +641,24 @@ void paging_init(void) {
     /* Clear page directory */
     memset(kernel_page_directory, 0, sizeof(page_directory_t));
     
-    /* Identity map first 4MB (kernel) */
-    page_table_t* first_table = (page_table_t*)alloc_page_table();
-    if (!first_table) {
-        printf("Failed to allocate first page table\n");
-        return;
+    /* Identity map the low physical region used during bootstrap. The PMM
+       reserves the first 8MB, so map enough low memory for the page tables
+       that will live there (16MB total, four 4MB tables). */
+    for (int table_index = 0; table_index < 4; table_index++) {
+        page_table_t* table = (page_table_t*)alloc_page_table();
+        if (!table) {
+            printf("Failed to allocate page table %d\n", table_index);
+            return;
+        }
+
+        for (int i = 0; i < PAGE_TABLE_SIZE; i++) {
+            uintptr_t phys = ((uintptr_t)table_index * PAGE_TABLE_SIZE + i) * PAGE_SIZE;
+            (*table)[i] = phys | PAGE_PRESENT | PAGE_WRITE;
+        }
+
+        (*kernel_page_directory)[table_index] = (uint32_t)table | PAGE_PRESENT | PAGE_WRITE;
+        kernel_page_tables[table_index] = table;
     }
-    
-    for (int i = 0; i < PAGE_TABLE_SIZE; i++) {
-        (*first_table)[i] = (i * PAGE_SIZE) | PAGE_PRESENT | PAGE_WRITE;
-    }
-    
-    (*kernel_page_directory)[0] = (uint32_t)first_table | PAGE_PRESENT | PAGE_WRITE;
     
     /* Map kernel heap */
     for (uintptr_t addr = KERNEL_HEAP_START; addr < KERNEL_HEAP_START + KERNEL_HEAP_SIZE; addr += PAGE_SIZE * PAGE_TABLE_SIZE) {
@@ -381,11 +671,13 @@ void paging_init(void) {
 
 void* alloc_page_table(void) {
     page_table_t* table = (page_table_t*)pmm_alloc_page();
-    if (!table) return NULL;
-    
+    if (!table) {
+        return NULL;
+    }
+
     /* Clear the table */
     memset(table, 0, sizeof(page_table_t));
-    
+
     return table;
 }
 
@@ -397,12 +689,19 @@ void map_page(uintptr_t virtual, uintptr_t physical, uint32_t flags) {
     if (!((*kernel_page_directory)[pd_index] & PAGE_PRESENT)) {
         page_table_t* table = (page_table_t*)alloc_page_table();
         if (!table) return;
-        (*kernel_page_directory)[pd_index] = (uint32_t)table | PAGE_PRESENT | PAGE_WRITE;
+
+        uint32_t pd_flags = PAGE_PRESENT | PAGE_WRITE;
+        if (flags & PAGE_USER)
+            pd_flags |= PAGE_USER;
+
+        (*kernel_page_directory)[pd_index] = (uint32_t)table | pd_flags;
         kernel_page_tables[pd_index] = table;
     }
     
     page_table_t* table = (page_table_t*)((*kernel_page_directory)[pd_index] & 0xFFFFF000);
     (*table)[pt_index] = (physical & 0xFFFFF000) | flags;
+
+    __asm__ volatile("invlpg (%0)" : : "r"(virtual) : "memory");
 }
 
 void unmap_page(uintptr_t virtual) {
@@ -489,31 +788,15 @@ extern uint32_t stack_top;
 extern void install_user_progs();
 
 void kernel_main(uint32_t magic, struct multiboot_info* mbi) {
-    /* Direct VGA debug - earliest possible output */
-    volatile uint16_t* vga = (volatile uint16_t*)0xB8000;
-    int vga_idx = 0;
-    
     /* Init serial for debugging */
     serial_init();
     
-    /* Write "K" to VGA and serial to confirm we're running */
-    vga[vga_idx++] = 0x0F00 | 'K';
-    serial_write("K");
-    kernel_log("[    0.000000] MYUNIXLIKEOS kernel starting...\n");
-    
     /* Validate multiboot */
     if (magic != MULTIBOOT2_INFO_MAGIC || !mbi) {
-        vga[vga_idx++] = 0x0C00 | 'B';  /* Red 'B' for bad multiboot */
-        serial_write("B");
-        kernel_log("[    0.000001] ERROR: Invalid multiboot magic or info\n");
         __asm__ volatile("cli; hlt");
     }
     
-    kernel_log("[    0.000002] Multiboot validation passed\n");
-    
     /* Parse memory map */
-    vga[vga_idx++] = 0x0200 | '1';  /* Green '1' */
-    serial_write("1");
     struct multiboot_tag* tag = (struct multiboot_tag*)(mbi->tags);
     struct multiboot_tag_mmap* mmap_tag = NULL;
     
@@ -525,88 +808,43 @@ void kernel_main(uint32_t magic, struct multiboot_info* mbi) {
         tag = (struct multiboot_tag*)((uint8_t*)tag + ((tag->size + 7) & ~7));
     }
     
-    /* Initialize components incrementally */
-    vga[vga_idx++] = 0x0200 | 'P';  /* Green 'P' - about to init PMM */
-    serial_write("P");
-    kernel_log("[    0.000003] Initializing Physical Memory Manager...\n");
+    /* Initialize components */
     pmm_init(mmap_tag);
-    vga[vga_idx++] = 0x0200 | 'p';  /* Green 'p' - PMM done */
-    serial_write("p");
-    kernel_log("[    0.000004] PMM initialized\n");
-    
-    vga[vga_idx++] = 0x0200 | 'F';  /* Green 'F' - about to init FS */
-    serial_write("F");
-    kernel_log("[    0.000005] Initializing Virtual File System...\n");
+    paging_init();
+    heap_init();
+    enable_paging();
     fs_init();
-    vga[vga_idx++] = 0x0200 | 'f';  /* Green 'f' - FS done */
-    serial_write("f");
-    kernel_log("[    0.000006] VFS initialized\n");
-    
-    vga[vga_idx++] = 0x0200 | 'G';  /* Green 'G' - about to init GDT */
-    serial_write("G");
-    kernel_log("[    0.000007] Initializing GDT...\n");
-    gdt_init();  /* <-- potential crash point */
-    vga[vga_idx++] = 0x0200 | 'g';  /* Green 'g' - GDT done */
-    serial_write("g");
-    kernel_log("[    0.000008] GDT initialized\n");
-    
-    vga[vga_idx++] = 0x0200 | 'I';  /* Green 'I' - about to init IDT */
-    serial_write("I");
-    kernel_log("[    0.000009] Initializing IDT...\n");
-    idt_init();  /* <-- potential crash point */
-    vga[vga_idx++] = 0x0200 | 'i';  /* Green 'i' - IDT done */
-    serial_write("i");
-    kernel_log("[    0.000010] IDT initialized\n");
-    
-    vga[vga_idx++] = 0x0200 | 'K';  /* Green 'K' - about to init Keyboard */
-    serial_write("K");
-    kernel_log("[    0.000011] Initializing keyboard driver...\n");
+    gdt_init();
+    idt_init();
     keyboard_init();
-    vga[vga_idx++] = 0x0200 | 'k';  /* Green 'k' - Keyboard done */
-    serial_write("k");
-    kernel_log("[    0.000012] Keyboard driver initialized\n");
     
     /* Initialize stack canary for buffer overflow protection */
     init_stack_canary();
-    kernel_log("[    0.000013] Stack canary initialized\n");
-    
-    vga[vga_idx++] = 0x0200 | 'T';  /* Green 'T' - about to set TSS */
-    serial_write("T");
-    kernel_log("[    0.000013] Setting up TSS...\n");
     tss_set_kernel_stack((uint32_t)&stack_top);
-    vga[vga_idx++] = 0x0200 | 't';  /* Green 't' - TSS done */
-    serial_write("t");
-    kernel_log("[    0.000014] TSS configured\n");
-    
-    vga[vga_idx++] = 0x0200 | 'U';  /* Green 'U' - about to install progs */
-    serial_write("U");
-    kernel_log("[    0.000015] Installing user programs...\n");
     install_user_progs();
-    vga[vga_idx++] = 0x0200 | 'u';  /* Green 'u' - progs done */
-    serial_write("u");
-    kernel_log("[    0.000016] User programs installed\n");
-    
-    vga[vga_idx++] = 0x0E00 | ':';  /* Yellow ':' - about to printf */
-    serial_write(":");
-    kernel_log("[    0.000017] Kernel initialization complete\n");
-    
+
+    unsigned total_kb = (unsigned)(pmm_total_pages() * 4);
+    unsigned free_kb = (unsigned)(pmm_free_pages() * 4);
+
     /* Try printf */
     printf("*nix IA-32 Kernel booted\n");
-    printf("Total memory: %u KB\n", (unsigned)(pmm_total_pages() * 4));
-    printf("Free memory: %u KB\n", (unsigned)(pmm_free_pages() * 4));
+    printf("Total memory: %u KB\n", total_kb);
+    printf("Free memory: %u KB\n", free_kb);
     
     /* Get and display current time */
     time_t t;
-    time(&t);
-    struct tm bt;
-    const char *days[]   = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-    const char *months[] = {
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    };
-    localtime_r(&t, &bt);
-    printf("%s %s %i:%i %i UTC\n", days[bt.tm_wday],
-        months[bt.tm_mon], bt.tm_hour, bt.tm_min, bt.tm_year);
+    if (time(&t) != (time_t)-1) {
+        struct tm bt;
+        if (localtime_r(&t, &bt) != NULL &&
+            bt.tm_wday >= 0 && bt.tm_wday < 7 &&
+            bt.tm_mon >= 0 && bt.tm_mon < 12) {
+            printf("TIME OK\n");
+        } else {
+            printf("UTC time unavailable\n");
+        }
+    } else {
+        printf("UTC time unavailable\n");
+    }
     
     /* Display splash screen */
     printf("\n");
@@ -622,7 +860,7 @@ void kernel_main(uint32_t magic, struct multiboot_info* mbi) {
     printf("\xC8\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xCD\xBC\n");
     printf("\n");
     
-    kernel_log("[    0.000018] Starting shell...\n");
+
     /* Start the shell */
     sh();
 }

@@ -1,44 +1,48 @@
 # MYUNIXLIKEOS
 
-A 32-bit Unix-like operating system kernel built from scratch. This project implements a freestanding environment, a Virtual File System (VFS), and a custom command-line interface.
+MYUNIXLIKEOS is a 32-bit Unix-like operating system kernel built from scratch for x86 hardware. It combines a protected-mode kernel, paging, a Virtual File System, an interactive shell, and ELF-based user program execution into a single educational platform.
 
-## Features
-- **Monolithic Kernel**: Written in freestanding C.
-- **Bootloader**: GRUB-based booting via Multiboot2.
-- **CLI**: Custom shell supporting `ls`, `cd`, `cat`, `grep`, `mkdir`, `touch`, `fs`, `clear` and a basic `nano` editor.
-- **Keyboard Driver**: PS/2 Set 1 support for all letters and base symbols `-=[]\;',./` and Shift key.
-- **Filesystem**: Integrated Virtual File System layer.
-- **Stack Canary Protection**: Kernel uses GCC stack protector support to detect stack buffer overflows at runtime.
+## What the OS provides
 
-## Security
-- **Stack canaries enabled** via `-fstack-protector-all` in the kernel build.
-- The boot process initializes `__stack_chk_guard` using RTC entropy and kernel memory state.
-- If stack corruption is detected, `__stack_chk_fail()` halts the system safely and prints an alert.
+- A freestanding monolithic kernel written in C and assembly.
+- Multiboot2 booting through GRUB with ISO generation.
+- Physical memory management, paging, protected-mode execution, and descriptor-table setup.
+- A VFS with file caching and a shell-driven command environment.
+- Built-in commands for file management, system inspection, text processing, editors, games, and development tasks.
+- User-mode program execution using ELF binaries and an `exec` workflow.
+- Kernel protections such as stack canaries and safe failure handling.
 
-## Prerequisites (macOS)
-This project is currently optimized for development on macOS. You will need the following tools installed via [Homebrew](https://brew.sh/):
+## Documentation
+
+- [DETAILED_DESCRIPTION.md](DETAILED_DESCRIPTION.md) — full architecture, subsystem, feature, and capability overview.
+- [USAGE_GUIDE.md](USAGE_GUIDE.md) — daily usage, command examples, editing, compiling, and runtime workflows.
+
+## Highlights
+
+- **Kernel architecture:** monolithic, low-level, x86 protected mode.
+- **Memory:** physical page allocation, paging, virtual address setup, stack protection.
+- **Filesystem:** VFS abstraction, file cache, directory/file handling, terminal-friendly utilities.
+- **Shell:** interactive command parser, built-in utilities, editor integration, command help.
+- **Execution:** ELF loading and user-mode program execution.
+- **Development workflow:** create source files, compile with the built-in toolchain, run programs inside the OS.
+
+## Quick start
+
+Build and run the OS with QEMU:
 
 ```bash
-brew install nasm qemu xorriso
-# Note: You need a cross-compiler (x86_64-elf-gcc or i686-elf-gcc)
-brew install x86_64-elf-gcc x86_64-elf-binutils
-#IMPORTANT: When compiling using x86_64-elf-gcc, you must specify the flags to compile to a 32-bit system.
-
+make clean && make
+make run
 ```
 
-## Project Goals & Roadmap
-The primary objective of this project is to evolve from a basic hobbyist kernel into a fully functional, POSIX-compliant Unix-like environment. 
+## Supported runtime environment
 
-**Current Focus:**
-- **Advanced Input Handling:** Our immediate goal is to expand the keyboard driver to support the full ASCII set, including uppercase letters, shifted symbols (`!@#$%^&*()_+`), and modifier keys (Control). While the current implementation successfully handles lowercase characters and base symbols, the transition to a state-based driver for full modifier support is the next major milestone.
-- **Extended CLI Toolset:** We are working to broaden the native command suite beyond basic file manipulation (e.g. `ls`, `cat`, `touch`) to include more complex Unix utilities.
-- **Networking Stack:** In the long term, we aim to implement a network stack to enable basic socket communication and networking capabilities directly from the kernel.
-- **Documentation:** We maintain clear build instructions and contributor guides to help new developers improve the OS.
-## System Requirements
-To successfully pass the GRUB bootloader and initialize the kernel, the following hardware is required:
+- QEMU-based x86 testing
+- VGA text console
+- PS/2 keyboard input
+- Serial diagnostics
+- GRUB boot image generation
 
-- **Processor**: Intel 80386 (i386) or later (32-bit x86 architecture)
-- **Memory (RAM)**: 3.6 MB
-- **Keyboard**: PS/2 (Legacy) or any other keyboards that support Standard ANSI. Cmd/Caps Lock keys not yet mapped.
-- **Video (Display)**: VGA-compatible video card supporting Mode 3 (80x25 Text Mode).
-- **Storage**: None (RAM-Only Execution)
+## Current focus
+
+The project emphasizes practical kernel development, interactive shell workflow, filesystem support, and user-mode execution. The full architecture is described in [DETAILED_DESCRIPTION.md](DETAILED_DESCRIPTION.md), while the day-to-day command and execution workflow is covered in [USAGE_GUIDE.md](USAGE_GUIDE.md).

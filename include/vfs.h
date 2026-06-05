@@ -35,6 +35,7 @@ int k_mkdir(const char* path);
 int k_touch(const char* path);
 vnode_t* vfs_lookup(const char* path);
 int k_install(const char* name, const uint8_t* data, uint32_t size);
+int k_unlink(const char* path);
 int k_exec(const char *path, const char **argv);
 
 /* Enhanced VFS operations */

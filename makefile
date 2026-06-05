@@ -2,11 +2,49 @@
 
 .SUFFIXES:
 
-AS      = nasm
-CC      = i686-elf-gcc
-LD      = i686-elf-ld
-AR      = i686-elf-ar
-OBJCOPY = i686-elf-objcopy
+SHELL ?= /usr/bin/env sh
+AS := $(if $(filter $(AS),as),nasm,$(AS))
+CP ?= cp
+QEMU ?= qemu-system-x86_64
+RM ?= rm -rf
+RMRF ?= rm -rf
+MKDIR_P ?= mkdir -p
+AR ?= ar
+OBJCOPY ?= objcopy
+UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
+
+HOST_I686_GCC := $(shell command -v i686-elf-gcc 2>/dev/null)
+HOST_I686_LD := $(shell command -v i686-elf-ld 2>/dev/null)
+HOST_CLANG := $(shell command -v clang 2>/dev/null)
+HOST_GCC := $(shell command -v gcc 2>/dev/null)
+HOST_LD := $(shell command -v ld 2>/dev/null)
+HOST_LLD := $(shell command -v lld 2>/dev/null)
+HOST_AR := $(shell command -v i686-elf-ar 2>/dev/null || command -v llvm-ar 2>/dev/null || command -v ar 2>/dev/null)
+HOST_OBJCOPY := $(shell command -v i686-elf-objcopy 2>/dev/null || command -v objcopy 2>/dev/null)
+
+override CC := $(if $(filter cc gcc clang,$(notdir $(CC))),$(or $(HOST_I686_GCC),$(HOST_CLANG),$(HOST_GCC),cc),$(CC))
+override LD := $(if $(filter ld,$(notdir $(LD))),$(or $(HOST_I686_LD),$(HOST_LLD),$(HOST_CLANG),$(HOST_LD),ld),$(LD))
+override AR := $(if $(filter ar,$(notdir $(AR))),$(or $(HOST_AR),ar),$(AR))
+override OBJCOPY := $(if $(filter objcopy,$(notdir $(OBJCOPY))),$(or $(HOST_OBJCOPY),objcopy),$(OBJCOPY))
+
+CC ?= $(HOST_I686_GCC)
+ifeq ($(CC),)
+CC ?= $(HOST_CLANG)
+endif
+ifeq ($(CC),)
+CC ?= $(HOST_GCC)
+endif
+
+LD ?= $(HOST_I686_LD)
+ifeq ($(LD),)
+LD ?= $(HOST_LLD)
+endif
+ifeq ($(LD),)
+LD ?= $(HOST_CLANG)
+endif
+ifeq ($(LD),)
+LD ?= $(HOST_LD)
+endif
 
 GRUB_RESCUE := $(shell \
 	if command -v i686-elf-grub-mkrescue >/dev/null 2>&1; then \
@@ -39,11 +77,19 @@ USER_PROG_DIR = $(USER_DIR)/programs
 
 OBJ_DIR       = $(USER_DIR)/obj/sys
 
+# Find libgcc path dynamically
+LIBGCC_PATH = $(shell $(CC) -print-libgcc-file-name 2>/dev/null)
+LIBGCC = $(LIBGCC_PATH)
+ifeq ($(LIBGCC),)
+LIBGCC = -lgcc
+endif
+
 # Kernel flags
 ASFLAGS = -f elf32
-CFLAGS  = -ffreestanding -O2 -m32 -fstack-protector-all -fno-builtin \
+CFLAGS  = -ffreestanding -Os -m32 -fstack-protector-all -fno-builtin \
+		  -ffunction-sections -fdata-sections \
           -Wall -Wextra -I$(INCLUDE_DIR) -Icommands
-LDFLAGS = -m elf_i386 -n -T linker.ld
+LDFLAGS = -m elf_i386 -n -T linker.ld --gc-sections
 
 # Userspace flags
 USER_CFLAGS = -ffreestanding -O2 -m32 -fno-stack-protector -fno-builtin \
@@ -133,6 +179,16 @@ STRING_SRC = \
 
 UNISTD_SRC = \
 	$(UNISTD_DIR)/write.c \
+	$(UNISTD_DIR)/read.c \
+	$(UNISTD_DIR)/close.c \
+	$(UNISTD_DIR)/stat.c \
+	$(UNISTD_DIR)/fstat.c \
+	$(UNISTD_DIR)/chdir.c \
+	$(UNISTD_DIR)/getdents.c \
+	$(UNISTD_DIR)/fork.c \
+	$(UNISTD_DIR)/brk.c \
+	$(UNISTD_DIR)/sbrk.c \
+	$(UNISTD_DIR)/exit.c \
 	$(UNISTD_DIR)/execl.c \
 
 FCNTL_SRC = \
@@ -143,18 +199,29 @@ LIBC_SRC  = $(STDIO_SRC) $(STRING_SRC) $(FCNTL_SRC) $(UNISTD_SRC)
 # Userspace libc sources
 USER_LIBC_SRC = \
 	$(USER_LIBC_DIR)/stdio/printf.c \
+	$(USER_LIBC_DIR)/stdio/sprintf.c \
 	$(USER_LIBC_DIR)/stdio/putchar.c \
 	$(USER_LIBC_DIR)/stdio/putc.c \
+	$(USER_LIBC_DIR)/stdio/streams.c \
 	$(USER_LIBC_DIR)/string/strlen.c \
 	$(USER_LIBC_DIR)/string/strcpy.c \
 	$(USER_LIBC_DIR)/string/strcat.c \
 	$(USER_LIBC_DIR)/string/strcmp.c \
+	$(USER_LIBC_DIR)/string/strstr.c \
 	$(USER_LIBC_DIR)/string/memcpy.c \
 	$(USER_LIBC_DIR)/string/memmove.c \
 	$(USER_LIBC_DIR)/string/memset.c \
+	$(USER_LIBC_DIR)/fcntl/open.c \
+	$(USER_LIBC_DIR)/unistd/read.c \
+	$(USER_LIBC_DIR)/unistd/close.c \
 	$(USER_LIBC_DIR)/unistd/write.c \
+	$(USER_LIBC_DIR)/unistd/stat.c \
+	$(USER_LIBC_DIR)/unistd/getdents.c \
+	$(USER_LIBC_DIR)/unistd/sbrk.c \
+	$(USER_LIBC_DIR)/unistd/brk.c \
+	$(USER_LIBC_DIR)/unistd/unlink.c \
+	$(USER_LIBC_DIR)/unistd/wait.c \
 	$(USER_LIBC_DIR)/unistd/sysinfo.c \
-	$(USER_LIBC_DIR)/stdio/streams.c \
 
 # User programs
 # To add a new program: append its source path here.
@@ -163,7 +230,8 @@ USER_LIBC_SRC = \
 USER_PROG_SRCS = \
 	bin/hello/hello.c \
 	bin/userprogs/simple.c \
-	bin/userprogs/echo_user.c
+	bin/userprogs/echo_user.c \
+	bin/userprogs/stability_test.c
 
 USER_PROGS = $(patsubst %.c,$(USER_OBJ_DIR)/%.elf,$(notdir $(USER_PROG_SRCS)))
 
@@ -188,7 +256,7 @@ USER_LIBC_OBJS = $(addprefix $(USER_OBJ_DIR)/, $(notdir $(USER_LIBC_SRC:.c=.o)))
 # Targets
 .PHONY: all run clean user
 
-all: user $(ISO)
+all: check-prereqs user $(ISO)
 
 # Kernel libc
 define libc_rule
@@ -247,7 +315,7 @@ $(OBJ_DIR)/entry.o: entry.asm | $(OBJ_DIR)
 
 # Kernel ELF
 $(ELF): linker.ld $(OBJ_DIR)/entry.o $(OBJ_DIR)/user_progs_bin.o $(OBJ_DIR)/user_progs.o $(KERN_OBJS) $(LIBC) | $(OBJ_DIR)
-	$(LD) $(LDFLAGS) -o $@ $(OBJ_DIR)/entry.o $(OBJ_DIR)/user_progs_bin.o $(OBJ_DIR)/user_progs.o $(KERN_OBJS) $(LIBC)
+	$(LD) $(LDFLAGS) -o $@ $(OBJ_DIR)/entry.o $(OBJ_DIR)/user_progs_bin.o $(OBJ_DIR)/user_progs.o $(KERN_OBJS) $(LIBC) $(LIBGCC)
 
 $(BIN): $(ELF)
 	$(OBJCOPY) -O binary $< $@
@@ -255,9 +323,9 @@ $(BIN): $(ELF)
 # ISO
 $(ISO): $(ELF) $(BIN)
 	@test -n "$(GRUB_RESCUE)" || { echo "ERROR: grub-mkrescue not found."; exit 1; }
-	rm -rf $(ISO_DIR)
-	mkdir -p $(ISO_DIR)/boot/grub
-	cp $(ELF) $(ISO_DIR)/boot/kernel.elf
+	$(RM) $(ISO_DIR)
+	$(MKDIR_P) $(ISO_DIR)/boot/grub
+	$(CP) $(ELF) $(ISO_DIR)/boot/kernel.elf
 	printf 'set timeout=5\nset default=0\nmenuentry "MYUNIXLIKEOS" {\n    multiboot2 /boot/kernel.elf\n    boot\n}\n' \
 		> $(ISO_DIR)/boot/grub/grub.cfg
 	$(GRUB_RESCUE) -o $@ $(ISO_DIR)
@@ -294,15 +362,31 @@ user: $(USER_PROGS)
 
 # Build dirs
 $(OBJ_DIR):
-	mkdir -p $(OBJ_DIR)
+	$(MKDIR_P) $(OBJ_DIR)
 
 $(USER_OBJ_DIR):
-	mkdir -p $(USER_OBJ_DIR)
+	$(MKDIR_P) $(USER_OBJ_DIR)
 
 # Run
 run: all
 	$(QEMU) $(QEMUFLAGS)
 
+# Prerequisites check
+check-prereqs:
+	@command -v $(AS) >/dev/null 2>&1 || { echo "ERROR: NASM not found. Install nasm or set AS."; exit 1; }
+	@command -v $(CC) >/dev/null 2>&1 || { echo "ERROR: compiler $(CC) not found. Install a cross compiler or set CC."; exit 1; }
+	@command -v $(LD) >/dev/null 2>&1 || { echo "ERROR: linker $(LD) not found. Install a cross linker or set LD."; exit 1; }
+	@command -v $(AR) >/dev/null 2>&1 || { echo "ERROR: archiver $(AR) not found. Install ar or set AR."; exit 1; }
+	@command -v $(OBJCOPY) >/dev/null 2>&1 || { echo "ERROR: objcopy $(OBJCOPY) not found. Install objcopy or set OBJCOPY."; exit 1; }
+	@test -n "$(GRUB_RESCUE)" || { echo "ERROR: grub-mkrescue not found. Install grub-mkrescue or set GRUB_RESCUE."; exit 1; }
+
+help:
+	@echo "Usage: make [TARGET]"
+	@echo "Targets: all, run, clean, user, check-prereqs, help"
+	@echo "Environment variables: AS, CC, LD, AR, OBJCOPY, CP, QEMU, GRUB_RESCUE"
+	@echo "On Windows, use a POSIX-compatible shell like MSYS2/Git Bash or WSL for best compatibility."
+
 # Clean
 clean:
-	rm -rf $(OBJ_DIR) $(USER_OBJ_DIR) $(ISO_DIR) $(ISO) $(ELF) $(BIN) $(LIBC)
+	$(RMRF) $(OBJ_DIR) $(USER_OBJ_DIR) $(ISO_DIR)
+	$(RM) $(ISO) $(ELF) $(BIN) $(LIBC)

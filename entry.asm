@@ -73,18 +73,19 @@ tss_load:
 
 
 ; Unexpected IRQ/exception handlers
-global isr_noerr
-global isr_err
 extern fault_handler
 
-; Stack layout after pusha (both handlers):
-;   [esp+0..28]  pusha'd registers  (8 regs × 4 = 32 bytes)
-;   [esp+32]     trapno
-;   [esp+36]     err_code
+; Build a vector table so each exception carries its real vector number.
+; For exceptions with an error code, the CPU already pushed err_code.
+; For those without one, we synthesize a zero error code.
 
-isr_noerr:
+global isr_table
+
+%macro ISR_NOERR 1
+global isr%1
+isr%1:
     push dword 0        ; dummy error code
-    push dword 0xFF     ; dummy trapno
+    push dword %1       ; real trap vector
     pusha
     push esp            ; pointer to trapframe
     call fault_handler
@@ -92,9 +93,12 @@ isr_noerr:
     popa
     add esp, 8
     iret
+%endmacro
 
-isr_err:
-    push dword 0xFF     ; dummy trapno (error code already on stack from CPU)
+%macro ISR_ERR 1
+global isr%1
+isr%1:
+    push dword %1       ; real trap vector (error code already on stack)
     pusha
     push esp            ; pointer to trapframe
     call fault_handler
@@ -102,6 +106,31 @@ isr_err:
     popa
     add esp, 8
     iret
+%endmacro
+
+isr_table:
+%assign i 0
+%rep 32
+    dd isr%+i
+%assign i i+1
+%endrep
+
+%assign i 0
+%rep 32
+    %if i == 8 || i == 10 || i == 11 || i == 12 || i == 13 || i == 14 || i == 17
+        ISR_ERR i
+    %else
+        ISR_NOERR i
+    %endif
+    %assign i i+1
+%endrep
+
+global isr_noerr
+global isr_err
+isr_noerr:
+    jmp isr0
+isr_err:
+    jmp isr8
 
 ; Syscall handler
 

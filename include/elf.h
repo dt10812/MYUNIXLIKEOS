@@ -9,6 +9,7 @@
 
 /* e_type */
 #define ET_EXEC         2
+#define ET_DYN          3
 
 /* e_machine */
 #define EM_386          3
@@ -20,6 +21,16 @@
 #define PF_X            0x1
 #define PF_W            0x2
 #define PF_R            0x4
+
+/* sh_type */
+#define SHT_REL         9
+
+/* r_info macros */
+#define ELF32_R_SYM(i)  ((i) >> 8)
+#define ELF32_R_TYPE(i) ((i) & 0xFF)
+
+/* Relocation types */
+#define R_386_32        1
 
 typedef struct {
     uint8_t  e_ident[16];
@@ -48,6 +59,24 @@ typedef struct {
     uint32_t p_flags;
     uint32_t p_align;
 } __attribute__((packed)) Elf32_Phdr;
+
+typedef struct {
+    uint32_t sh_name;
+    uint32_t sh_type;
+    uint32_t sh_flags;
+    uint32_t sh_addr;
+    uint32_t sh_offset;
+    uint32_t sh_size;
+    uint32_t sh_link;
+    uint32_t sh_info;
+    uint32_t sh_addralign;
+    uint32_t sh_entsize;
+} __attribute__((packed)) Elf32_Shdr;
+
+typedef struct {
+    uint32_t r_offset;
+    uint32_t r_info;
+} __attribute__((packed)) Elf32_Rel;
 
 /* Returns 0 if valid ELF32 executable for IA-32, -1 otherwise */
 int elf_validate(const uint8_t *data, size_t size);

@@ -8,11 +8,27 @@ static struct idt_entry idt[256];
 static struct idt_ptr   idtp;
 
 extern void _syscall(void);
-extern void isr_noerr(void);
-extern void isr_err(void);
+extern void *isr_table[];
+extern uintptr_t get_physical_address(uintptr_t virtual);
+
+static void serial_write_dec_local(uint32_t value) {
+    char buf[12];
+    int i = 0;
+    if (value == 0) {
+        serial_write("0");
+        return;
+    }
+    while (value > 0 && i < (int)sizeof(buf) - 1) {
+        buf[i++] = '0' + (value % 10);
+        value /= 10;
+    }
+    for (int j = i - 1; j >= 0; j--) {
+        char c[2] = {buf[j], '\0'};
+        serial_write(c);
+    }
+}
 
 struct trapframe {
-    uint32_t gs, fs, es, ds;
     uint32_t edi, esi, ebp, esp_dummy, ebx, edx, ecx, eax; /* pusha */
     uint32_t trapno, err_code;
     /* auto-pushed by the cpu */
@@ -26,8 +42,47 @@ void fault_handler(struct trapframe *regs) {
         "#MF", "#AC", "#MC", "#XF"
     };
     const char *name = regs->trapno < 20 ? names[regs->trapno] : "??";
+
+    uintptr_t cr2;
+    uintptr_t cr3;
+    __asm__ volatile ("mov %%cr2, %0" : "=r"(cr2));
+    __asm__ volatile ("mov %%cr3, %0" : "=r"(cr3));
+
+    serial_write("FAULT trapno=");
+    serial_write_dec_local(regs->trapno);
+    serial_write(" name=");
+    serial_write(name);
+    serial_write(" err=");
+    serial_write_dec_local(regs->err_code);
+    serial_write(" cr2=");
+    serial_write_dec_local((uint32_t)cr2);
+    serial_write(" cr3=");
+    serial_write_dec_local((uint32_t)cr3);
+    uintptr_t phys = get_physical_address((uintptr_t)cr2);
+    serial_write(" phys=");
+    serial_write_dec_local((uint32_t)phys);
+    serial_write(" eip=");
+    serial_write_dec_local(regs->eip);
+    serial_write(" cs=");
+    serial_write_dec_local(regs->cs);
+    serial_write(" eflags=");
+    serial_write_dec_local(regs->eflags);
+    serial_write(" esp=");
+    serial_write_dec_local(regs->esp_dummy);
+    serial_write(" ebp=");
+    serial_write_dec_local(regs->ebp);
+    serial_write(" eax=");
+    serial_write_dec_local(regs->eax);
+    serial_write(" ebx=");
+    serial_write_dec_local(regs->ebx);
+    serial_write(" ecx=");
+    serial_write_dec_local(regs->ecx);
+    serial_write(" edx=");
+    serial_write_dec_local(regs->edx);
+    serial_write("\n");
     
     if (regs->trapno == 14) { /* Page Fault */
+        
         /* Clear screen and set blue background */
         for (int i = 0; i < 80 * 25; i++) {
             ((uint16_t*)0xB8000)[i] = 0x1F00; /* Blue background, black text */
@@ -155,17 +210,11 @@ void idt_init(void) {
     idtp.limit = sizeof(idt) - 1;
     idtp.base  = (uint32_t)&idt;
 
-    for (int i = 0; i < 256; i++)
-        set_idt_gate(i, isr_noerr, 0x8E);
+    for (int i = 0; i < 32; i++)
+        set_idt_gate(i, isr_table[i], 0x8E);
 
-    /* exceptions with error codes */
-    set_idt_gate(8,  isr_err, 0x8E); /* Double Fault       */
-    set_idt_gate(10, isr_err, 0x8E); /* Invalid TSS        */
-    set_idt_gate(11, isr_err, 0x8E); /* Segment Not Present*/
-    set_idt_gate(12, isr_err, 0x8E); /* Stack Fault        */
-    set_idt_gate(13, isr_err, 0x8E); /* General Protection */
-    set_idt_gate(14, isr_err, 0x8E); /* Page Fault         */
-    set_idt_gate(17, isr_err, 0x8E); /* Alignment Check    */
+    for (int i = 32; i < 256; i++)
+        set_idt_gate(i, isr_table[0], 0x8E);
 
     /* syscall — DPL=3 */
     set_idt_gate(0x80, _syscall, 0xEE);

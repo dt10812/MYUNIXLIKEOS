@@ -9,7 +9,7 @@ PHDRS {
 SECTIONS {
     . = 0x00100000;
     .text : {
-        *(.multiboot2_header)
+        KEEP(*(.multiboot2_header))
         *(.text*)
     } :text
     .rodata : { *(.rodata*) } :rodata
