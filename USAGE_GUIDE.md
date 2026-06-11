@@ -1,152 +1,65 @@
 # MYUNIXLIKEOS Usage Guide
 
-## 1. Getting Started
+## Getting Started
 
-MYUNIXLIKEOS boots into a shell prompt on the VGA console. The shell supports built-in commands, file utilities, editor commands, system inspection, and execution of embedded user-mode programs.
-
-To start the system, build the image and launch QEMU:
+Build and run the OS:
 
 ```bash
 make clean && make
 make run
 ```
 
-The shell will display the welcome screen and then provide an interactive prompt.
+The shell prompts on the VGA console. Commands are case-sensitive and follow Unix convention.
 
-## 2. Working with the Shell
+## Common Tasks
 
-The shell accepts commands, parses arguments, and dispatches them to built-in handlers or user programs. Command names are case-sensitive and match Unix-style usage.
-
-### Common shell patterns
-
+### File Management
 ```bash
-ls
-pwd
-cat filename.txt
-mkdir newdir
-touch newfile.txt
-cp source.txt destination.txt
-mv oldname.txt newname.txt
-rm file.txt
+ls                    # List directory
+pwd                   # Show current directory
+cd <dir>              # Change directory
+mkdir <dir>           # Create directory
+touch <file>          # Create file
+cat <file>            # Display file
+cp <src> <dst>        # Copy file
+mv <src> <dst>        # Move/rename
+rm <file>             # Remove file
+clear                 # Clear screen
 ```
 
-### Getting help
-
+### System Information
 ```bash
-help
-help <command>
+date                  # Show time
+free                  # Show memory usage
+uname                 # Show OS info
+uptime                # Show runtime
+sysinfo               # Show system details
+top, vmstat, memory   # Diagnostics
 ```
 
-The `help` command lists available commands and usage information.
-
-## 3. File Operations
-
-The file system supports common interactive operations.
-
-| Command | Purpose |
-| --- | --- |
-| `ls` | List files and directories |
-| `mkdir DIR` | Create a directory |
-| `cd DIR` | Change directory |
-| `pwd` | Show current directory |
-| `touch FILE` | Create an empty file |
-| `cat FILE` | Display file contents |
-| `cp SRC DST` | Copy a file |
-| `mv SRC DST` | Rename or move a file |
-| `rm FILE` | Remove a file |
-| `clear` | Clear the console |
-
-### Example workflow
-
+### Text Processing
 ```bash
-pwd
-mkdir demo
-cd demo
-touch notes.txt
-cat notes.txt
-cp notes.txt backup.txt
-mv backup.txt saved.txt
-rm saved.txt
-cd ..
+echo <text>           # Print text
+grep <pattern> <file> # Search in file
+head <file>           # Show start of file
+tail <file>           # Show end of file
+wc <file>             # Count lines/words
+sort <file>           # Sort content
+uniq <file>           # Remove duplicates
 ```
 
-## 4. Systems and Diagnostics
-
-The OS includes system inspection commands for memory, time, uptime, and process-like runtime information.
-
-| Command | Purpose |
-| --- | --- |
-| `date` | Display current time |
-| `free` | View memory usage |
-| `memory` | Inspect memory allocator state |
-| `top` | Show runtime status |
-| `vmstat` | View virtual memory statistics |
-| `uname` | Display OS identity |
-| `whoami` | Display current identity |
-| `uptime` | Show elapsed runtime |
-| `sysinfo` | Show system information |
-
-### Example
-
+### Editing
 ```bash
-free
-memory
-top
-vmstat
-uname
-uptime
-date
+nano <file>           # Edit with nano
 ```
 
-## 5. Text Processing and Utilities
+**nano shortcuts:** `Ctrl+O` (save), `Ctrl+X` (exit), `Ctrl+W` (search), `Ctrl+K` (cut), `Ctrl+U` (paste)
 
-MYUNIXLIKEOS includes several text-oriented tools.
-
-| Command | Purpose |
-| --- | --- |
-| `echo TEXT` | Print text |
-| `grep PATTERN FILE` | Search file contents |
-| `head FILE` | Show the beginning of a file |
-| `tail FILE` | Show the end of a file |
-| `wc FILE` | Count words, characters, and lines |
-| `sort FILE` | Sort lines |
-| `uniq FILE` | Remove duplicates |
-| `color` | Adjust supported display colors |
-
-### Example
-
+### Help
 ```bash
-echo "Hello from MYUNIXLIKEOS"
-grep "error" logfile.txt
-head config.txt
-tail config.txt
-wc notes.txt
-sort names.txt
-uniq list.txt
+help                  # List commands
+help <command>        # Command help
 ```
-
-## 6. Editing Files
-
-The operating system includes interactive text editors so files can be created, viewed, and modified from the shell.
-
-### `nano`
-
-Use `nano` to create or edit text files interactively.
-
-```bash
-nano example.txt
-```
-
-Within `nano`, use the editor shortcuts:
-
-- `Ctrl+O` — save file
-- `Ctrl+X` — exit
-- `Ctrl+R` — reload file
-- `Ctrl+W` — search
-- `Ctrl+K` — cut line
-- `Ctrl+U` — paste
-- `Ctrl+A` / `Ctrl+E` — jump to line start/end
-- `Ctrl+B` / `Ctrl+F` / `Ctrl+P` / `Ctrl+Z` — cursor movement helpers
 
 ### `vi`
 

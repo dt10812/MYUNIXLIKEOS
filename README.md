@@ -4,13 +4,13 @@ MYUNIXLIKEOS is a 32-bit Unix-like operating system kernel built from scratch fo
 
 ## What the OS provides
 
-- A freestanding monolithic kernel written in C and assembly.
-- Multiboot2 booting through GRUB with ISO generation.
-- Physical memory management, paging, protected-mode execution, and descriptor-table setup.
-- A VFS with file caching and a shell-driven command environment.
-- Built-in commands for file management, system inspection, text processing, editors, games, and development tasks.
-- User-mode program execution using ELF binaries and an `exec` workflow.
-- Kernel protections such as stack canaries and safe failure handling.
+- A complete 32-bit kernel with memory management, paging, and protected-mode execution.
+- Multiboot2 boot support through GRUB with ISO generation.
+- A Virtual File System with shell-driven command environment.
+- Interactive utilities for file management, system inspection, text processing, and editing.
+- User-mode program execution with ELF binary support.
+- Error handling with POSIX errno integration for robust system calls.
+- Built-in safety features including stack canaries and safe failure handling.
 
 ## Documentation
 
