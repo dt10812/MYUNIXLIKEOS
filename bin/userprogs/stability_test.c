@@ -174,6 +174,70 @@ static int run_filesystem_test(void) {
     return 0;
 }
 
+static int run_append_test(void) {
+    const char *path = "/stability_append.log";
+    const char *first_payload = "append test first line\n";
+    const char *second_payload = "append test second line\n";
+    char buffer[128];
+    ssize_t expected_size = strlen(first_payload) + strlen(second_payload);
+
+    int fd = open(path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd < 0) {
+        printf("[stability-test] failed to create append file\n");
+        return 50;
+    }
+    if (write(fd, first_payload, strlen(first_payload)) != (ssize_t)strlen(first_payload)) {
+        close(fd);
+        printf("[stability-test] failed to write initial append payload\n");
+        return 51;
+    }
+    if (close(fd) != 0) {
+        printf("[stability-test] failed to close append file\n");
+        return 52;
+    }
+
+    fd = open(path, O_WRONLY | O_APPEND, 0644);
+    if (fd < 0) {
+        printf("[stability-test] failed to reopen append file\n");
+        return 53;
+    }
+    if (write(fd, second_payload, strlen(second_payload)) != (ssize_t)strlen(second_payload)) {
+        close(fd);
+        printf("[stability-test] failed to append payload\n");
+        return 54;
+    }
+    if (close(fd) != 0) {
+        printf("[stability-test] failed to close appended file\n");
+        return 55;
+    }
+
+    fd = open(path, O_RDONLY, 0);
+    if (fd < 0) {
+        printf("[stability-test] failed to read appended file\n");
+        return 56;
+    }
+    memset(buffer, 0, sizeof(buffer));
+    ssize_t count = read(fd, buffer, sizeof(buffer) - 1);
+    close(fd);
+    if (count != expected_size) {
+        printf("[stability-test] read size mismatch for append file: %zd expected %zd\n", count, expected_size);
+        return 57;
+    }
+    buffer[count] = '\0';
+    if (strcmp(buffer, first_payload) != 0 || strcmp(buffer + strlen(first_payload), second_payload) != 0) {
+        printf("[stability-test] append file content mismatch\n");
+        return 58;
+    }
+
+    if (unlink(path) != 0) {
+        printf("[stability-test] failed to unlink append file\n");
+        return 59;
+    }
+
+    printf("[stability-test] append semantics passed\n");
+    return 0;
+}
+
 static int run_descriptor_test(void) {
     char path[MAX_PATH];
     int fds[FD_STRESS];
@@ -284,6 +348,9 @@ int main(int argc, char **argv) {
     if (result != 0) return result;
 
     result = run_filesystem_test();
+    if (result != 0) return result;
+
+    result = run_append_test();
     if (result != 0) return result;
 
     result = run_descriptor_test();

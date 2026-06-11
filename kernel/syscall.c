@@ -14,6 +14,7 @@
 #include "commands.h"
 #include "pmm.h"
 #include "rtc.h"
+#include "errno.h"
 
 extern void *user_sbrk(intptr_t increment);
 extern int user_brk(void *addr);
@@ -120,6 +121,7 @@ void syscall_handler(struct trapframe *regs) {
             uint32_t count = regs->edx;
 
             if (!buf || !count) {
+                errno = EINVAL;
                 regs->eax = (uint32_t)-1;
                 break;
             }
@@ -135,12 +137,14 @@ void syscall_handler(struct trapframe *regs) {
 
             fd_entry_t *entry = get_fd(fd);
             if (!entry || !entry->node || !(entry->node->flags & VFS_FILE)) {
+                errno = EBADF;
                 regs->eax = (uint32_t)-1;
                 break;
             }
 
             ensure_writable_content(entry->node);
             if (!entry->node->content) {
+                errno = ENOMEM;
                 regs->eax = (uint32_t)-1;
                 break;
             }
@@ -162,12 +166,14 @@ void syscall_handler(struct trapframe *regs) {
             uint32_t count = regs->edx;
 
             if (!buf || !count) {
+                errno = EINVAL;
                 regs->eax = (uint32_t)-1;
                 break;
             }
 
             fd_entry_t *entry = get_fd(fd);
             if (!entry || !entry->node || !(entry->node->flags & VFS_FILE)) {
+                errno = EBADF;
                 regs->eax = (uint32_t)-1;
                 break;
             }
@@ -192,11 +198,13 @@ void syscall_handler(struct trapframe *regs) {
         case SYS_close: {
             int fd = (int)regs->ebx;
             if (fd <= 2) {
+                errno = EBADF;
                 regs->eax = (uint32_t)-1;
                 break;
             }
             fd_entry_t *entry = get_fd(fd);
             if (!entry) {
+                errno = EBADF;
                 regs->eax = (uint32_t)-1;
                 break;
             }
@@ -211,6 +219,7 @@ void syscall_handler(struct trapframe *regs) {
             int mode = (int)regs->edx;
 
             if (!path || !*path) {
+                errno = EINVAL;
                 regs->eax = (uint32_t)-1;
                 break;
             }
@@ -218,6 +227,7 @@ void syscall_handler(struct trapframe *regs) {
             vnode_t *node = vfs_lookup(path);
             if (!node && (flags & O_CREAT)) {
                 if (k_touch(path) != 0) {
+                    errno = EACCES;
                     regs->eax = (uint32_t)-1;
                     break;
                 }
@@ -225,6 +235,7 @@ void syscall_handler(struct trapframe *regs) {
             }
 
             if (!node) {
+                errno = ENOENT;
                 regs->eax = (uint32_t)-1;
                 break;
             }
@@ -235,6 +246,7 @@ void syscall_handler(struct trapframe *regs) {
 
             int fd = allocate_fd();
             if (fd < 0) {
+                errno = EMFILE;
                 regs->eax = (uint32_t)-1;
                 break;
             }
@@ -261,6 +273,7 @@ void syscall_handler(struct trapframe *regs) {
             const char *path = (const char *)regs->ebx;
             vnode_t *node = vfs_lookup(path);
             if (!node || !(node->flags & VFS_DIRECTORY)) {
+                errno = ENOENT;
                 regs->eax = (uint32_t)-1;
             } else {
                 current_dir = node;
@@ -273,7 +286,12 @@ void syscall_handler(struct trapframe *regs) {
             const char *path = (const char *)regs->ebx;
             struct stat *st = (struct stat *)regs->ecx;
             vnode_t *node = vfs_lookup(path);
-            regs->eax = (fill_stat(node, st) == 0) ? 0 : (uint32_t)-1;
+            if (!node) {
+                errno = ENOENT;
+                regs->eax = (uint32_t)-1;
+            } else {
+                regs->eax = (fill_stat(node, st) == 0) ? 0 : (uint32_t)-1;
+            }
             break;
         }
 
@@ -282,6 +300,7 @@ void syscall_handler(struct trapframe *regs) {
             struct stat *st = (struct stat *)regs->ecx;
             fd_entry_t *entry = get_fd(fd);
             if (!entry || !entry->node) {
+                errno = EBADF;
                 regs->eax = (uint32_t)-1;
             } else {
                 regs->eax = (fill_stat(entry->node, st) == 0) ? 0 : (uint32_t)-1;
@@ -295,7 +314,14 @@ void syscall_handler(struct trapframe *regs) {
             uint32_t count = regs->edx;
             fd_entry_t *entry = get_fd(fd);
 
-            if (!buf || !count || !entry || !entry->node || !(entry->node->flags & VFS_DIRECTORY)) {
+            if (!buf || !count) {
+                errno = EINVAL;
+                regs->eax = (uint32_t)-1;
+                break;
+            }
+
+            if (!entry || !entry->node || !(entry->node->flags & VFS_DIRECTORY)) {
+                errno = EBADF;
                 regs->eax = (uint32_t)-1;
                 break;
             }

@@ -17,12 +17,6 @@ static uintptr_t user_heap_base = 0;
 static uintptr_t user_heap_brk = 0;
 static int user_heap_initialized = 0;
 
-static void user_heap_reset(void) {
-    user_heap_base = 0;
-    user_heap_brk = 0;
-    user_heap_initialized = 0;
-}
-
 static inline uintptr_t page_align_down(uintptr_t addr);
 static inline uintptr_t page_align_up(uintptr_t addr);
 
@@ -162,8 +156,9 @@ int elf_validate(const uint8_t *data, size_t size) {
         return -1;
     }
 
+    uintptr_t load_bias = (ehdr->e_type == ET_DYN) ? USER_BASE : 0;
     uint32_t entry = ehdr->e_entry;
-    if (entry < USER_BASE || entry > USER_TOP) {
+    if (entry == 0 || entry + load_bias < USER_BASE || entry + load_bias > USER_TOP) {
         printf("elf: invalid entry point\n");
         return -1;
     }
@@ -190,23 +185,22 @@ int elf_validate(const uint8_t *data, size_t size) {
             printf("elf: segment %u file bounds out of range\n", i);
             return -1;
         }
-        if (phdr->p_vaddr < USER_BASE) {
-            printf("elf: segment %u maps below user base\n", i);
-            return -1;
-        }
-        if (phdr->p_vaddr > USER_TOP) {
-            printf("elf: segment %u maps beyond user space\n", i);
-            return -1;
-        }
-        uintptr_t segment_end = phdr->p_vaddr + phdr->p_memsz;
-        if (segment_end < phdr->p_vaddr) {
+
+        uintptr_t virt_begin = phdr->p_vaddr + load_bias;
+        uintptr_t virt_end = phdr->p_vaddr + load_bias + phdr->p_memsz;
+        if (virt_end < virt_begin) {
             printf("elf: segment %u overflows virtual address\n", i);
             return -1;
         }
-        if (segment_end > USER_TOP + 1u) {
+        if (virt_begin < USER_BASE) {
+            printf("elf: segment %u maps below user base\n", i);
+            return -1;
+        }
+        if (virt_end > USER_TOP + 1u) {
             printf("elf: segment %u exceeds user space\n", i);
             return -1;
         }
+
         if (phdr->p_align != 0 && (phdr->p_vaddr % phdr->p_align) != (phdr->p_offset % phdr->p_align)) {
             printf("elf: segment %u alignment mismatch\n", i);
             return -1;
@@ -221,6 +215,7 @@ uint32_t elf_load(const uint8_t *data, size_t size) {
         return 0;
 
     const Elf32_Ehdr *ehdr = (const Elf32_Ehdr *)data;
+    uintptr_t load_bias = (ehdr->e_type == ET_DYN) ? USER_BASE : 0;
     mapped_page_t mapped_pages[ELF_MAX_MAPPED_PAGES];
     size_t mapped_count = 0;
     uintptr_t max_segment_end = USER_BASE;
@@ -233,8 +228,9 @@ uint32_t elf_load(const uint8_t *data, size_t size) {
         if (phdr->p_type != PT_LOAD)
             continue;
 
-        uintptr_t segment_start = page_align_down(phdr->p_vaddr);
-        uintptr_t segment_end = page_align_up(phdr->p_vaddr + phdr->p_memsz);
+        uintptr_t segment_va = phdr->p_vaddr + load_bias;
+        uintptr_t segment_start = page_align_down(segment_va);
+        uintptr_t segment_end = page_align_up(segment_va + phdr->p_memsz);
         uintptr_t page_count = (segment_end - segment_start) / PAGE_SIZE;
 
         if (page_count == 0) {
@@ -280,7 +276,7 @@ uint32_t elf_load(const uint8_t *data, size_t size) {
             memset((void*)addr, 0, PAGE_SIZE);
         }
 
-        uint8_t *dest = (uint8_t *)phdr->p_vaddr;
+        uint8_t *dest = (uint8_t *)segment_va;
         memcpy(dest, data + phdr->p_offset, phdr->p_filesz);
         if (phdr->p_memsz > phdr->p_filesz) {
             memset(dest + phdr->p_filesz, 0, phdr->p_memsz - phdr->p_filesz);
@@ -292,7 +288,7 @@ uint32_t elf_load(const uint8_t *data, size_t size) {
     }
 
     user_heap_init(max_segment_end);
-    return ehdr->e_entry;
+    return ehdr->e_entry + load_bias;
 }
 
 extern void jump_usermode(uint32_t entry, uint32_t user_stack);

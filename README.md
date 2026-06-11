@@ -35,6 +35,19 @@ make clean && make
 make run
 ```
 
+## Supported build environment
+
+This project builds with a 32-bit x86 cross-toolchain. The Makefile auto-selects `i686-elf-gcc`, `clang`, or a compatible host compiler when available.
+
+Required host tools include:
+
+- `i686-elf-gcc` / `i686-elf-ld`
+- `grub-mkrescue`
+- `objcopy`
+- `qemu-system-x86_64`
+
+If using macOS, install a compatible `i686-elf` cross toolchain or use a native `clang`/`gcc` fallback.
+
 ## Supported runtime environment
 
 - QEMU-based x86 testing

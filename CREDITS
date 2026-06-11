@@ -1,0 +1,11 @@
+MYUNIXLIKEOS is available thanks to the work of:
+
+Nguyen Duc Thinh <ducthinh100812@gmail.com> <https://github.com/dt10812>
+Katie Reeves <https://github.com/katiereeves>
+
+The GNU Project Contributors (GCC Toolchain & GRUB Multiboot2 Specification)
+The QEMU Development Team (Hardware Emulation Environment)
+
+Third-Party Components & Data Structures:
+
+Linux Kernel UAPI Maintainers (POSIX System Call Error Configuration)

@@ -17,11 +17,9 @@ int cmd_mv(int argc, char** argv) {
     
     /* Find source file */
     vnode_t* src = NULL;
-    uint32_t src_idx = 0xFFFFFFFF;
     for (uint32_t i = 0; i < current_dir->child_count; i++) {
         if (strcmp(current_dir->children[i]->name, src_name) == 0) {
             src = current_dir->children[i];
-            src_idx = i;
             break;
         }
     }

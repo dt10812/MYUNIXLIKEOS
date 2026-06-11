@@ -88,13 +88,13 @@ endif
 ASFLAGS = -f elf32
 CFLAGS  = -ffreestanding -Os -m32 -fstack-protector-all -fno-builtin \
 		  -ffunction-sections -fdata-sections \
-          -Wall -Wextra -I$(INCLUDE_DIR) -Icommands
+		  -Wall -Wextra -I$(INCLUDE_DIR) -Icommands
 LDFLAGS = -m elf_i386 -n -T linker.ld --gc-sections
 
 # Userspace flags
 USER_CFLAGS = -ffreestanding -O2 -m32 -fno-stack-protector -fno-builtin \
-              -fno-pie -no-pie \
-              -Wall -Wextra -I$(INCLUDE_DIR)
+			  -fno-pie -no-pie \
+			  -Wall -Wextra -I$(INCLUDE_DIR)
 USER_LDFLAGS = -m elf_i386 -T user.ld
 
 # Kernel sources
@@ -153,15 +153,17 @@ SRC = \
 	$(CMD_DIR)/cd/cd.c \
 	$(CMD_DIR)/help/help.c \
 	$(CMD_DIR)/touch/touch.c \
-	$(CMD_DIR)/clear/clear.c \
+	$(CMD_DIR)/clear/clear.c
 
 # Kernel libc sources
+ERROR_SRC = \
+	$(LIBC_DIR)/error/strerror.c 
 STDIO_SRC = \
 	$(STDIO_DIR)/getchar.c \
 	$(STDIO_DIR)/putc.c \
 	$(STDIO_DIR)/putchar.c \
 	$(STDIO_DIR)/printf.c \
-	$(STDIO_DIR)/sprintf.c \
+	$(STDIO_DIR)/sprintf.c 
 
 STRING_SRC = \
 	$(STRING_DIR)/memset.c \
@@ -175,7 +177,7 @@ STRING_SRC = \
 	$(STRING_DIR)/strncat.c \
 	$(STRING_DIR)/strstr.c \
 	$(STRING_DIR)/strchr.c \
-	$(STRING_DIR)/strncpy.c \
+	$(STRING_DIR)/strncpy.c 
 
 UNISTD_SRC = \
 	$(UNISTD_DIR)/write.c \
@@ -189,12 +191,12 @@ UNISTD_SRC = \
 	$(UNISTD_DIR)/brk.c \
 	$(UNISTD_DIR)/sbrk.c \
 	$(UNISTD_DIR)/exit.c \
-	$(UNISTD_DIR)/execl.c \
+	$(UNISTD_DIR)/execl.c 
 
 FCNTL_SRC = \
-	$(FCNTL_DIR)/creat.c \
+	$(FCNTL_DIR)/creat.c 
 
-LIBC_SRC  = $(STDIO_SRC) $(STRING_SRC) $(FCNTL_SRC) $(UNISTD_SRC)
+LIBC_SRC  = $(STDIO_SRC) $(STRING_SRC) $(FCNTL_SRC) $(UNISTD_SRC) $(ERROR_SRC)
 
 # Userspace libc sources
 USER_LIBC_SRC = \
@@ -221,7 +223,7 @@ USER_LIBC_SRC = \
 	$(USER_LIBC_DIR)/unistd/brk.c \
 	$(USER_LIBC_DIR)/unistd/unlink.c \
 	$(USER_LIBC_DIR)/unistd/wait.c \
-	$(USER_LIBC_DIR)/unistd/sysinfo.c \
+	$(USER_LIBC_DIR)/unistd/sysinfo.c 
 
 # User programs
 # To add a new program: append its source path here.
@@ -244,9 +246,9 @@ ULIBC = $(USER_OBJ_DIR)/libc.a
 
 QEMU      = qemu-system-x86_64
 QEMUFLAGS = -m 2G -boot d \
-            -drive file=$(ISO),format=raw,if=ide,media=cdrom \
-            -serial mon:stdio \
-            -d int,cpu_reset -no-reboot
+			-drive file=$(ISO),format=raw,if=ide,media=cdrom \
+			-serial mon:stdio \
+			-d int,cpu_reset -no-reboot
 
 # Object paths
 KERN_OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRC:.c=.o)))

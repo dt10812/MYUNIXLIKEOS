@@ -7,7 +7,7 @@ int open(const char *path, int oflag, ...) {
     if (oflag & O_CREAT) {
         va_list ap;
         va_start(ap, oflag);
-        mode = va_arg(ap, mode_t);
+        mode = va_arg(ap, int);
         va_end(ap);
     }
     return syscall(SYS_open, (long)path, (long)oflag, (long)mode, 0, 0);

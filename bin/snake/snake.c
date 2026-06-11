@@ -4,6 +4,12 @@
 #include "stdint.h"
 #include "stdbool.h"
 #include "io.h"
+#include "keyboard.h"
+
+#define SNAKE_KEY_UP    0xE0
+#define SNAKE_KEY_DOWN  0xE1
+#define SNAKE_KEY_LEFT  0xE2
+#define SNAKE_KEY_RIGHT 0xE3
 
 #define VGA_BUFFER ((volatile uint16_t*)0xB8000)
 
@@ -46,10 +52,6 @@ static uint8_t food_x[MAX_FOODS];
 static uint8_t food_y[MAX_FOODS];
 static uint8_t food_count;
 static uint8_t snake_length;
-
-static void snake_set_color(uint8_t attr) {
-    terminal_set_color(attr);
-}
 
 static int parse_color_value(const char *arg) {
     if (!arg) return -1;
@@ -117,7 +119,7 @@ static void snake_put_cell(uint8_t x, uint8_t y, char ch, uint8_t attr) {
 
 static void snake_clear_screen(void) {
     for (uint16_t i = 0; i < TERM_WIDTH * TERM_HEIGHT; i++) {
-        VGA_BUFFER[i] = ((uint16_t)0x07 << 8) | ' ';
+        VGA_BUFFER[i] = ((uint16_t)board_color << 8) | ' ';
     }
     terminal_row = 0;
     terminal_col = 0;
@@ -154,9 +156,9 @@ static void snake_draw_status(int score) {
     /* Draw status line at bottom */
     uint16_t pos = (TERM_HEIGHT - 1) * TERM_WIDTH;
     
-    /* Clear status line */
+    /* Clear status line with board background */
     for (uint16_t i = 0; i < TERM_WIDTH; i++) {
-        VGA_BUFFER[pos + i] = ((uint16_t)text_color << 8) | ' ';
+        VGA_BUFFER[pos + i] = ((uint16_t)board_color << 8) | ' ';
     }
     
     /* Draw borders at edges */
@@ -274,21 +276,21 @@ static int snake_play(void) {
     uint32_t frame_counter = 0;
 
     while (true) {
-        char c = keyboard_pollchar();
+        int c = (unsigned char)keyboard_pollchar();
         if (c == 'q' || c == 'Q')
             break;
 
         /* Change direction */
-        if ((c == 'w' || c == 'W') && dy != 1) {
+        if ((c == 'w' || c == 'W' || c == SNAKE_KEY_UP) && dy != 1) {
             dx = 0;
             dy = -1;
-        } else if ((c == 's' || c == 'S') && dy != -1) {
+        } else if ((c == 's' || c == 'S' || c == SNAKE_KEY_DOWN) && dy != -1) {
             dx = 0;
             dy = 1;
-        } else if ((c == 'a' || c == 'A') && dx != 1) {
+        } else if ((c == 'a' || c == 'A' || c == SNAKE_KEY_LEFT) && dx != 1) {
             dx = -1;
             dy = 0;
-        } else if ((c == 'd' || c == 'D') && dx != -1) {
+        } else if ((c == 'd' || c == 'D' || c == SNAKE_KEY_RIGHT) && dx != -1) {
             dx = 1;
             dy = 0;
         }
@@ -393,6 +395,7 @@ static void snake_print_usage(void) {
     terminal_write("    type: snake, food, border, board, text\n");
     terminal_write("  snake reset           Restore default game colors.\n");
     terminal_write("  snake help            Show this help.\n");
+    terminal_write("Controls: Use arrow keys to move the snake.\n");
     terminal_write("Colors are names or 0xN such as green or 0xC.\n");
 }
 

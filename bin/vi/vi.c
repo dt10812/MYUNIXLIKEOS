@@ -248,8 +248,9 @@ int cmd_vi(int argc, char **argv) {
             if (c == ':') {
                 terminal_write(":");
                 read_line(command_line, sizeof(command_line));
-                if (strcmp(command_line, "w") == 0 || strcmp(command_line, "wq") == 0) {
+                if (strcmp(command_line, "w") == 0 || strcmp(command_line, "wq") == 0 || strcmp(command_line, "x") == 0) {
                     vi_save(file, buf, len);
+                    vi_print_status("written");
                 }
                 if (strcmp(command_line, "q") == 0) {
                     return 0;
@@ -257,7 +258,7 @@ int cmd_vi(int argc, char **argv) {
                 if (strcmp(command_line, "q!") == 0) {
                     return 0;
                 }
-                if (strcmp(command_line, "wq") == 0) {
+                if (strcmp(command_line, "wq") == 0 || strcmp(command_line, "x") == 0) {
                     return 0;
                 }
                 if (strncmp(command_line, "e ", 2) == 0) {

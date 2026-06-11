@@ -66,9 +66,9 @@ static void shell_buffer_reset(void) {
     buffer_write_idx = 0;
 }
 
-static char shell_buffer_read(void) {
+static unsigned char shell_buffer_read(void) {
     if (buffer_read_idx < buffer_write_idx) {
-        return input_buffer[buffer_read_idx++];
+        return (unsigned char)input_buffer[buffer_read_idx++];
     }
     return 0;
 }
@@ -82,14 +82,14 @@ static void shell_read_line(char *buf, size_t size) {
     
     while (1) {
         /* First try to read from the buffer */
-        char c = shell_buffer_read();
+        unsigned char c = shell_buffer_read();
         
         /* If buffer is empty, collect characters from keyboard */
         if (!c) {
-            c = keyboard_pollchar();
+            c = (unsigned char)keyboard_pollchar();
             if (!c) {
                 /* No input available, try blocking getchar as fallback */
-                c = keyboard_getchar();
+                c = (unsigned char)keyboard_getchar();
             }
         }
         
@@ -182,19 +182,29 @@ static void shell_read_line(char *buf, size_t size) {
 
 static void split_args(char *input, char **argv, int *argc) {
     *argc = 0;
-    char in_token = 0;
 
-    while (*input) {
-        if (*input == ' ' || *input == '\t') {
-            *input = '\0';
-            in_token = 0;
-        } else if (!in_token) {
-            in_token = 1;
-            argv[(*argc)++] = input;
-            if (*argc >= 16)
-                break;
+    while (*input && *argc < 16) {
+        while (*input == ' ' || *input == '\t')
+            *input++ = '\0';
+        if (!*input)
+            break;
+
+        argv[*argc] = input;
+        (*argc)++;
+
+        if (*input == '"' || *input == '\'') {
+            char quote = *input++;
+            argv[*argc - 1] = input;
+            while (*input && *input != quote)
+                input++;
+            if (*input == quote)
+                *input++ = '\0';
+        } else {
+            while (*input && *input != ' ' && *input != '\t')
+                input++;
+            if (*input)
+                *input++ = '\0';
         }
-        input++;
     }
 }
 
@@ -437,6 +447,11 @@ void sh(void) {
                 
                 set_env_var(name, value);
             }
+            continue;
+        }
+
+        if (strcmp(argv[0], "exit") == 0 || strcmp(argv[0], "quit") == 0) {
+            printf("Use shutdown or reboot to leave the OS.\n");
             continue;
         }
 

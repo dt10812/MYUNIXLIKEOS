@@ -133,30 +133,6 @@ static void nano_search(const char* buffer, size_t len, size_t* cursor_pos, size
     *view_line = nano_row_for_pos(buffer, *cursor_pos);
 }
 
-static void nano_justify_line(char* buffer, size_t* len, size_t cursor_pos) {
-    size_t start = nano_line_start(buffer, cursor_pos);
-    size_t end = nano_line_end(buffer, cursor_pos, *len);
-    size_t write = start;
-    bool in_space = false;
-    for (size_t i = start; i < end; i++) {
-        if (buffer[i] == ' ' || buffer[i] == '\t') {
-            if (!in_space) {
-                buffer[write++] = ' ';
-                in_space = true;
-            }
-        } else {
-            buffer[write++] = buffer[i];
-            in_space = false;
-        }
-    }
-    if (write > start && buffer[write - 1] == ' ') write--;
-    size_t removed = end - write;
-    if (removed) {
-        memmove(buffer + write, buffer + end, *len - end);
-        *len -= removed;
-    }
-}
-
 static void nano_cut_line(char* buffer, size_t* len, size_t* cursor_pos) {
     size_t start = nano_line_start(buffer, *cursor_pos);
     size_t end = nano_line_end(buffer, *cursor_pos, *len);
@@ -168,10 +144,6 @@ static void nano_cut_line(char* buffer, size_t* len, size_t* cursor_pos) {
     memmove(buffer + start, buffer + end, *len - end);
     *len -= end - start;
     *cursor_pos = start;
-}
-
-static void nano_delete_line(char* buffer, size_t* len, size_t* cursor_pos) {
-    nano_cut_line(buffer, len, cursor_pos);
 }
 
 static void nano_goto_line(char* buffer, size_t len, size_t* cursor_pos, size_t* view_line) {
@@ -372,8 +344,8 @@ int cmd_nano(int argc, char** argv) {
             }
             continue;
         }
-        /* Ctrl+Z - Next line (Down) instead of suspending */
-        if (c == 0x1A) {
+        /* Ctrl+N - Next line (Down) */
+        if (c == 0x0E || c == 0x1A) {
             size_t line_end = nano_line_end(buffer, cursor_pos, len);
             if (line_end < len && buffer[line_end] == '\n') {
                 size_t next_line_start = line_end + 1;
@@ -383,6 +355,12 @@ int cmd_nano(int argc, char** argv) {
                 if (col > next_line_len) col = next_line_len;
                 cursor_pos = next_line_start + col;
             }
+            continue;
+        }
+        /* Ctrl+E - End of current line */
+        if (c == 0x05) {
+            size_t line_end = nano_line_end(buffer, cursor_pos, len);
+            cursor_pos = line_end;
             continue;
         }
         /* Ctrl+L - Go to line */

@@ -3,6 +3,8 @@
 #include "sys/time.h"
 
 int cmd_date(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
     time_t t;
     time(&t);
     struct tm bt;

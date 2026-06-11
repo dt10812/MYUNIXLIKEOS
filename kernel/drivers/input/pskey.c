@@ -228,15 +228,6 @@ char keyboard_pollchar(void) {
     return translate_scancode(c);
 }
 
-/* Buffer input from keyboard for higher throughput */
-static char buffer_getchar(void) {
-    char c = keyboard_pollchar();
-    if (c && buffer_write_idx < INPUT_BUFFER_SIZE) {
-        input_buffer[buffer_write_idx++] = c;
-    }
-    return c;
-}
-
 /* Read from the buffer */
 static char buffer_read(void) {
     if (buffer_read_idx < buffer_write_idx) {

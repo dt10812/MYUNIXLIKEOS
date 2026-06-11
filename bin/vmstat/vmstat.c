@@ -3,7 +3,8 @@
 #include "commands.h"
 
 int cmd_vmstat(int argc, char** argv) {
-    size_t total_pages = pmm_total_pages();
+    (void)argc;
+    (void)argv;
     size_t free_pages = pmm_free_pages();
 
     printf("procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----\n");

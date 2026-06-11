@@ -166,6 +166,8 @@ MYUNIXLIKEOS supports compiling small C programs from inside the shell using the
 2. Compile the file into an ELF executable.
 3. Run the resulting program with `exec`.
 
+The shell includes a built-in `gcc` command that compiles small C programs into ELF binaries suitable for execution with `exec`. User-mode programs must be linked as 32-bit ELF executables to run in the OS.
+
 Example:
 
 ```bash
